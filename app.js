@@ -294,7 +294,7 @@ function render() {
         <div class="brand">
           <span class="brand-mark">质</span>
           <span>
-            <strong>影子老师质量监督</strong>
+            <strong>融合教育数字化智能工具</strong>
             <small>演示数据</small>
           </span>
         </div>
