@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="720" height="420" viewBox="0 0 720 420" role="img" aria-labelledby="title desc">
+  <title id="title">课堂数学记录演示插图</title>
+  <desc id="desc">俯视课桌、数字卡片、积木和匿名化的手部</desc>
+  <rect width="720" height="420" fill="#e8e2d8"/>
+  <rect x="48" y="38" width="624" height="344" rx="12" fill="#9b765c"/>
+  <rect x="256" y="70" width="310" height="250" rx="8" fill="#faf8f1"/>
+  <path d="M286 111h150M286 145h118M286 179h184" stroke="#9aa7a0" stroke-width="9" stroke-linecap="round"/>
+  <rect x="92" y="84" width="82" height="82" rx="8" fill="#d46355"/>
+  <rect x="105" y="184" width="82" height="82" rx="8" fill="#e1ad45"/>
+  <rect x="118" y="284" width="82" height="68" rx="8" fill="#4f8da3"/>
+  <path d="m299 230 24 24 54-58M412 230h92" fill="none" stroke="#39745d" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="498" cy="271" r="24" fill="#e1ad45"/>
+  <path d="M584 338c-18-50-48-70-88-60l-42 22 30 64h92z" fill="#c78d70"/>
+</svg>
