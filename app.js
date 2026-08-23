@@ -80,6 +80,9 @@ const DEFAULT_STATE = {
     alias: "小宇",
     grade: "小学三年级",
     teacherId: "lin-xiaoya",
+    dailyActive: 3,
+    dailyPrompted: 2,
+    monthlySupervisionHours: 4,
     monthlyProgress: [
       { label: "课堂参与", value: 82, delta: "+9" },
       { label: "独立完成", value: 74, delta: "+12" },
@@ -216,6 +219,8 @@ if (initialRole && roleConfig[initialRole]) {
     : roleConfig[initialRole].defaultPage;
 }
 let toastTimer;
+
+const STATUS = { DRAFT: "draft", PENDING: "pending", VERIFIED: "verified", CORRECTION: "correction" };
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
@@ -395,20 +400,20 @@ function renderTeacherCard(teacher) {
   return `
     <article class="teacher-card">
       <div class="teacher-card-top">
-        <div class="avatar" style="--avatar:${teacher.color}">${teacher.initials}</div>
+        <div class="avatar" style="--avatar:${escapeHtml(teacher.color)}">${escapeHtml(teacher.initials)}</div>
         <div>
-          <div class="teacher-name"><h2>${teacher.name}</h2>${teacher.certified ? `<span class="verified" title="平台认证">✓</span>` : ""}</div>
-          <div class="teacher-subtitle">${teacher.title}</div>
+          <div class="teacher-name"><h2>${escapeHtml(teacher.name)}</h2>${teacher.certified ? `<span class="verified" title="平台认证">✓</span>` : ""}</div>
+          <div class="teacher-subtitle">${escapeHtml(teacher.title)}</div>
         </div>
-        <div class="price">¥${teacher.price}<small>/天</small></div>
+        <div class="price">¥${escapeHtml(teacher.price)}<small>/天</small></div>
       </div>
-      <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}${!teacher.certified ? `<span class="status amber">认证中</span>` : ""}</div>
+      <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}${!teacher.certified ? `<span class="status amber">认证中</span>` : ""}</div>
       <div class="card-stats">
         <div class="card-stat"><strong>${teacher.graduationCount}</strong><span>毕业案例</span></div>
         <div class="card-stat"><strong>${teacher.supervisionHours}h</strong><span>督导时长</span></div>
         <div class="card-stat"><strong>${teacher.verifyRate}%</strong><span>校方核验率</span></div>
       </div>
-      <div class="card-actions"><button class="button ghost" type="button" data-open-teacher="${teacher.id}">查看档案</button></div>
+      <div class="card-actions"><button class="button ghost" type="button" data-open-teacher="${escapeHtml(teacher.id)}">查看档案</button></div>
     </article>
   `;
 }
@@ -423,15 +428,15 @@ function renderTeacherDetail(id) {
   return `
     <button class="back-button" type="button" data-back>← 返回老师列表</button>
     <div class="profile-head">
-      <div class="avatar" style="--avatar:${teacher.color}">${teacher.initials}</div>
+      <div class="avatar" style="--avatar:${escapeHtml(teacher.color)}">${escapeHtml(teacher.initials)}</div>
       <div>
-        <div class="teacher-name"><h1>${teacher.name}</h1>${teacher.certified ? `<span class="verified" title="平台认证">✓</span>` : ""}</div>
-        <div class="teacher-subtitle">${teacher.title}</div>
-        <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
+        <div class="teacher-name"><h1>${escapeHtml(teacher.name)}</h1>${teacher.certified ? `<span class="verified" title="平台认证">✓</span>` : ""}</div>
+        <div class="teacher-subtitle">${escapeHtml(teacher.title)}</div>
+        <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${escapeHtml(tag)}</span>`).join("")}</div>
       </div>
-      <button class="button primary" type="button" data-consult="${teacher.id}" ${consulted ? "disabled" : ""}>${consulted ? "已申请咨询" : `申请咨询 · ¥${teacher.price}/天`}</button>
+      <button class="button primary" type="button" data-consult="${escapeHtml(teacher.id)}" ${consulted ? "disabled" : ""}>${consulted ? "已申请咨询" : `申请咨询 · ¥${escapeHtml(teacher.price)}/天`}</button>
     </div>
-    <p class="profile-copy">${teacher.description}</p>
+    <p class="profile-copy">${escapeHtml(teacher.description)}</p>
     <section class="section">
       <div class="section-title"><h2>专业信用</h2><span>${teacher.certified ? "平台已认证" : "平台认证中"}</span></div>
       <div class="metrics">
@@ -445,10 +450,10 @@ function renderTeacherDetail(id) {
       <div class="section-title"><h2>代表性毕业案例</h2><span>均经多方确认</span></div>
       <div class="case-grid">${teacher.cases.map((item) => `
         <article class="case-card">
-          <h3>${item.type}</h3>
-          <span class="status ${item.result === "完全独立" ? "green" : "amber"}">${item.result}</span>
-          <p>陪伴 ${item.duration}</p>
-          <p>${item.note}</p>
+          <h3>${escapeHtml(item.type)}</h3>
+          <span class="status ${item.result === "完全独立" ? "green" : "amber"}">${escapeHtml(item.result)}</span>
+          <p>陪伴 ${escapeHtml(item.duration)}</p>
+          <p>${escapeHtml(item.note)}</p>
         </article>
       `).join("")}</div>
     </section>
@@ -459,19 +464,19 @@ function renderTeacherDetail(id) {
 }
 
 function visibleTimelineLessons() {
-  return state.lessons.filter((lesson) => ["pending", "verified", "correction"].includes(lesson.status));
+  return state.lessons.filter((lesson) => [STATUS.PENDING, STATUS.VERIFIED, STATUS.CORRECTION].includes(lesson.status));
 }
 
 function renderToday() {
-  const verified = state.lessons.filter((lesson) => lesson.status === "verified").length;
-  const pending = state.lessons.filter((lesson) => lesson.status === "pending").length;
+  const verified = state.lessons.filter((lesson) => lesson.status === STATUS.VERIFIED).length;
+  const pending = state.lessons.filter((lesson) => lesson.status === STATUS.PENDING).length;
   return `
     ${pageHeader(`${state.child.alias}的今天`, `${state.child.grade} · ${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}`)}
     <div class="summary-grid">
       <div class="summary" style="--accent:var(--green)"><span>校方已确认</span><strong>${verified}</strong></div>
       <div class="summary" style="--accent:var(--amber)"><span>等待确认</span><strong>${pending}</strong></div>
-      <div class="summary" style="--accent:var(--blue)"><span>主动参与</span><strong>3次</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>需要提示</span><strong>2次</strong></div>
+      <div class="summary" style="--accent:var(--blue)"><span>主动参与</span><strong>${state.child.dailyActive}次</strong></div>
+      <div class="summary" style="--accent:var(--coral)"><span>需要提示</span><strong>${state.child.dailyPrompted}次</strong></div>
     </div>
     <div class="timeline">${visibleTimelineLessons().map(renderTimelineItem).join("")}</div>
   `;
@@ -488,7 +493,7 @@ function renderTimelineItem(lesson) {
         <img src="${lesson.media}" alt="${lesson.subject}匿名化演示记录" />
         <div>
           <p><strong>支持策略：</strong>${escapeHtml(lesson.strategy)}</p>
-          <div class="comment" style="margin-top:12px">${lesson.status === "verified" ? `<strong>${lesson.schoolTeacher}：</strong>${escapeHtml(lesson.schoolComment || "确认属实")}` : "等待校内老师确认"}</div>
+          <div class="comment" style="margin-top:12px">${lesson.status === STATUS.VERIFIED ? `<strong>${lesson.schoolTeacher}：</strong>${escapeHtml(lesson.schoolComment || "确认属实")}` : "等待校内老师确认"}</div>
         </div>
       </div>
     </article>
@@ -534,33 +539,35 @@ function renderParentProfile() {
 }
 
 function renderSchedule() {
-  const completed = state.lessons.filter((lesson) => lesson.status === "verified").length;
-  const pendingReview = state.lessons.filter((lesson) => lesson.status === "pending").length;
+  const completed = state.lessons.filter((lesson) => lesson.status === STATUS.VERIFIED).length;
+  const pendingReview = state.lessons.filter((lesson) => lesson.status === STATUS.PENDING).length;
   return `
     ${pageHeader("今日课表", `${state.child.alias} · 4节支持任务`)}
     <div class="summary-grid">
       <div class="summary"><span>已完成</span><strong>${completed}</strong></div>
       <div class="summary" style="--accent:var(--amber)"><span>待校方确认</span><strong>${pendingReview}</strong></div>
-      <div class="summary" style="--accent:var(--blue)"><span>待填写</span><strong>${state.lessons.filter((lesson) => lesson.status === "draft").length}</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>需修正</span><strong>${state.lessons.filter((lesson) => lesson.status === "correction").length}</strong></div>
+      <div class="summary" style="--accent:var(--blue)"><span>待填写</span><strong>${state.lessons.filter((lesson) => lesson.status === STATUS.DRAFT).length}</strong></div>
+      <div class="summary" style="--accent:var(--coral)"><span>需修正</span><strong>${state.lessons.filter((lesson) => lesson.status === STATUS.CORRECTION).length}</strong></div>
     </div>
     <div class="list">${state.lessons.map((lesson) => {
       const [label, tone] = statusLabel(lesson.status);
-      const canEdit = ["draft", "correction"].includes(lesson.status);
+      const canEdit = [STATUS.DRAFT, STATUS.CORRECTION].includes(lesson.status);
       return `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time}</span><span class="status ${tone}">${label}</span></div><h3>${lesson.subject}</h3><p>${lesson.behavior || `课后向${lesson.schoolTeacher}提交反馈`}</p></div>${canEdit ? `<button class="button primary" type="button" data-feedback="${lesson.id}">${lesson.status === "correction" ? "修改反馈" : "填写反馈"}</button>` : `<button class="button ghost" type="button" data-toast="该记录当前不可修改">查看记录</button>`}</article>`;
     }).join("")}</div>
   `;
 }
 
 function renderChildren() {
+  const teacher = state.teachers.find((item) => item.id === state.child.teacherId);
   return `
     ${pageHeader("服务儿童", "仅展示已授权且与当前老师建立服务关系的档案")}
-    <article class="list-card"><div><div class="list-card-meta"><span class="status green">服务中</span><span>${state.child.grade}</span></div><h3>${state.child.alias}</h3><p>今日 4 节任务 · 本月校方核验率 98%</p></div><button class="button ghost" type="button" data-role-jump="parent:today">查看时间轴</button></article>
+    <article class="list-card"><div><div class="list-card-meta"><span class="status green">服务中</span><span>${state.child.grade}</span></div><h3>${state.child.alias}</h3><p>今日 4 节任务 · 本月校方核验率 ${teacher ? teacher.verifyRate : 0}%</p></div><button class="button ghost" type="button" data-role-jump="parent:today">查看时间轴</button></article>
   `;
 }
 
 function renderCredit() {
   const teacher = state.teachers.find((item) => item.id === state.child.teacherId);
+  if (!teacher) return `${pageHeader("我的专业信用", "未找到关联老师")}<div class="empty"><div class="empty-mark">!</div>当前账户未关联服务老师</div>`;
   const g = state.graduation;
   return `
     ${pageHeader("我的专业信用", "经平台、校方与服务家庭核验的专业记录")}
@@ -580,8 +587,10 @@ function renderCredit() {
 }
 
 function renderSupervision() {
+  const teacher = state.teachers.find((item) => item.id === state.child.teacherId);
+  const supervisionHours = teacher ? teacher.supervisionHours : 0;
   return `
-    ${pageHeader("在线督导", "累计 126 小时 · 本月 4 小时", `<button class="button primary" type="button" data-toast="已生成督导预约演示单">预约督导</button>`)}
+    ${pageHeader("在线督导", `累计 ${supervisionHours} 小时 · 本月 ${state.child.monthlySupervisionHours} 小时`, `<button class="button primary" type="button" data-toast="已生成督导预约演示单">预约督导</button>`)}
     <div class="list">
       <article class="list-card"><div><div class="list-card-meta"><span>6月28日 19:30</span><span class="status green">已完成</span></div><h3>支持逐步撤离策略</h3><p>督导：苏老师 · 60分钟 · 记录已归档</p></div><button class="button ghost" type="button" data-toast="已打开督导记录摘要">查看记录</button></article>
       <article class="list-card"><div><div class="list-card-meta"><span>7月20日 19:30</span><span class="status amber">已预约</span></div><h3>同伴互动泛化</h3><p>督导：苏老师 · 60分钟</p></div><button class="button ghost" type="button" data-toast="演示预约不可变更">管理预约</button></article>
@@ -590,7 +599,7 @@ function renderSupervision() {
 }
 
 function pendingLessons() {
-  return state.lessons.filter((lesson) => lesson.status === "pending");
+  return state.lessons.filter((lesson) => lesson.status === STATUS.PENDING);
 }
 
 function renderReview() {
@@ -602,7 +611,7 @@ function renderReview() {
 }
 
 function renderReviewHistory() {
-  const lessons = state.lessons.filter((lesson) => lesson.status === "verified");
+  const lessons = state.lessons.filter((lesson) => lesson.status === STATUS.VERIFIED);
   return `
     ${pageHeader("确认记录", `共 ${lessons.length} 条已确认反馈`)}
     <div class="list">${lessons.map((lesson) => `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time} · ${lesson.subject}</span><span class="status green">已确认</span></div><h3>${state.child.alias}</h3><p>${escapeHtml(lesson.schoolComment || "确认属实")}</p></div><span>${lesson.updatedAt}</span></article>`).join("")}</div>
@@ -642,8 +651,8 @@ function renderGraduation() {
   return `
     ${pageHeader("毕业认证", `${g.childAlias} · 提名结果：${g.result}`)}
     <div class="profile-head" style="grid-template-columns:58px minmax(0,1fr) auto">
-      <div class="avatar" style="--avatar:${teacher.color};width:58px;height:58px">${teacher.initials}</div>
-      <div><div class="teacher-name"><h1 style="font-size:20px">${teacher.name}</h1><span class="verified">✓</span></div><div class="teacher-subtitle">服务14个月 · 最近三月校方核验率98%</div></div>
+      <div class="avatar" style="--avatar:${escapeHtml(teacher.color)};width:58px;height:58px">${escapeHtml(teacher.initials)}</div>
+      <div><div class="teacher-name"><h1 style="font-size:20px">${escapeHtml(teacher.name)}</h1><span class="verified">✓</span></div><div class="teacher-subtitle">服务14个月 · 最近三月校方核验率98%</div></div>
       <span class="status ${g.status === 4 ? "green" : "amber"}">${graduationLabel(g.status)}</span>
     </div>
     <section class="section">
@@ -652,7 +661,7 @@ function renderGraduation() {
       ${g.status === 1 ? `<button class="button primary" type="button" data-grad-action="observe">提交心理观察</button>` : ""}
       ${g.status === 2 ? `<button class="button primary" type="button" data-grad-action="approve">督导审核通过</button>` : ""}
       ${g.status === 3 ? `<div class="notice">专业审核已完成，等待家长确认。</div>` : ""}
-      ${g.status === 4 ? `<div class="notice">认证完成。案例已归档并计入${teacher.name}的专业信用。</div>` : ""}
+      ${g.status === 4 ? `<div class="notice">认证完成。案例已归档并计入${escapeHtml(teacher.name)}的专业信用。</div>` : ""}
     </section>
     <section class="section">
       <div class="section-title"><h2>核心证据</h2><span>模拟数据</span></div>
@@ -716,7 +725,7 @@ function renderReviewModal(lessonId) {
   const body = `<form id="review-form"><div class="modal-body">
     <div class="notice" style="margin-bottom:18px"><strong>${lesson.time} · ${lesson.subject}</strong><br />${escapeHtml(lesson.behavior)}</div>
     <div class="form-grid">
-      <fieldset class="fieldset field full"><legend>是否属实</legend><div class="radio-row"><label class="radio"><input type="radio" name="truth" value="verified" checked /> 属实</label><label class="radio"><input type="radio" name="truth" value="correction" /> 需要修正</label></div></fieldset>
+      <fieldset class="fieldset field full"><legend>是否属实</legend><div class="radio-row"><label class="radio"><input type="radio" name="truth" value="${STATUS.VERIFIED}" checked /> 属实</label><label class="radio"><input type="radio" name="truth" value="${STATUS.CORRECTION}" /> 需要修正</label></div></fieldset>
       <div class="field full"><label for="school-comment">补充评语（选填）</label><textarea class="textarea" id="school-comment" name="comment" placeholder="语音评语在演示版中以文字模拟"></textarea></div>
     </div>
   </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">提交确认</button></div></form>`;
@@ -833,7 +842,7 @@ document.addEventListener("click", (event) => {
     showToast(`已导出 ${experienceFeedback.length} 条反馈`);
     return;
   }
-  if (target.matches("[data-close-modal]") || target.matches("[data-modal-backdrop]") && target === event.target) {
+  if (target.matches("[data-close-modal]") || (target.matches("[data-modal-backdrop]") && target === event.target)) {
     ui.modal = null;
     render();
     return;
@@ -877,9 +886,20 @@ document.addEventListener("change", (event) => {
   }
 });
 
+let isComposing = false;
+document.addEventListener("compositionstart", () => { isComposing = true; });
+document.addEventListener("compositionend", (event) => {
+  isComposing = false;
+  if (event.target.matches("#teacher-search")) {
+    ui.query = event.target.value;
+    render();
+  }
+});
+
 document.addEventListener("input", (event) => {
   if (event.target.matches("#teacher-search")) {
     ui.query = event.target.value;
+    if (isComposing) return;
     const cursor = event.target.selectionStart;
     render();
     const input = document.querySelector("#teacher-search");
@@ -914,7 +934,7 @@ document.addEventListener("submit", (event) => {
     const form = new FormData(event.target);
     lesson.behavior = form.get("behavior").trim();
     lesson.strategy = form.get("strategy").trim();
-    lesson.status = "pending";
+    lesson.status = STATUS.PENDING;
     lesson.updatedAt = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
     ui.modal = null;
     saveAndRender(`已提交${lesson.schoolTeacher}确认`);
@@ -924,10 +944,10 @@ document.addEventListener("submit", (event) => {
     const lesson = state.lessons.find((item) => item.id === ui.modal.lessonId);
     const form = new FormData(event.target);
     lesson.status = form.get("truth");
-    lesson.schoolComment = form.get("comment").trim() || (lesson.status === "verified" ? "确认记录属实。" : "请补充更具体的课堂行为描述。");
+    lesson.schoolComment = form.get("comment").trim() || (lesson.status === STATUS.VERIFIED ? "确认记录属实。" : "请补充更具体的课堂行为描述。");
     lesson.updatedAt = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
     ui.modal = null;
-    saveAndRender(lesson.status === "verified" ? "已确认，家长时间轴已更新" : "已退回影子老师修正");
+    saveAndRender(lesson.status === STATUS.VERIFIED ? "已确认，家长时间轴已更新" : "已退回影子老师修正");
     return;
   }
   if (event.target.matches("#graduation-form")) {
