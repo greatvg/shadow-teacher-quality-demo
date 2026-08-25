@@ -710,6 +710,27 @@ textarea:focus-visible {
   font-size: 12px;
 }
 
+.course-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.course-title-row h3 {
+  margin: 0;
+}
+
+.rename-link {
+  flex: 0 0 auto;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  color: var(--blue);
+  background: var(--surface);
+  font-size: 12px;
+}
+
 .summary-detail {
   display: grid;
   gap: 10px;

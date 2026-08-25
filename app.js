@@ -212,7 +212,6 @@ const roleConfig = {
     nav: [
       { id: "schedule", label: "今日课表", icon: "▦" },
       { id: "timetable", label: "学期课表", icon: "▤" },
-      { id: "plan", label: "学期计划", icon: "◈" },
       { id: "children", label: "服务儿童", icon: "◎" },
       { id: "credit", label: "专业信用", icon: "◇" },
       { id: "supervision", label: "在线督导", icon: "◉" }
@@ -256,7 +255,7 @@ let ui = {
 const initialParams = new URLSearchParams(window.location.search);
 const initialRole = initialParams.get("role");
 const initialPage = initialParams.get("page");
-if (initialRole && roleConfig[initialRole]) {
+if (initialRole && initialRole !== "specialist" && roleConfig[initialRole]) {
   ui.role = initialRole;
   ui.page = roleConfig[initialRole].nav.some((item) => item.id === initialPage)
     ? initialPage
@@ -348,7 +347,7 @@ function render() {
         <div class="role-control">
           <label for="role-select">当前视角</label>
           <select id="role-select" class="select" aria-label="切换演示角色">
-            ${Object.entries(roleConfig).map(([id, config]) => `<option value="${id}" ${id === ui.role ? "selected" : ""}>${config.label}</option>`).join("")}
+            ${Object.entries(roleConfig).filter(([id]) => id !== "specialist").map(([id, config]) => `<option value="${id}" ${id === ui.role ? "selected" : ""}>${config.label}</option>`).join("")}
           </select>
         </div>
       </header>
@@ -393,7 +392,6 @@ function renderPage() {
     "parent:profile": renderParentProfile,
     "shadow:schedule": renderSchedule,
     "shadow:timetable": renderTimetable,
-    "shadow:plan": renderPlan,
     "shadow:children": renderChildren,
     "shadow:credit": renderCredit,
     "shadow:supervision": renderSupervision,
@@ -636,13 +634,14 @@ function renderSchedule() {
       const [label, tone] = statusLabel(lesson.status);
       const canEdit = ["draft", "correction"].includes(lesson.status);
       const adjusted = lesson.subject !== lesson.originalSubject;
-      return `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time}</span><span class="status ${tone}">${label}</span>${adjusted ? `<span class="status blue">已调整</span>` : ""}</div><h3>${escapeHtml(lesson.subject)}</h3>${adjusted ? `<p class="rename-note">原课：${escapeHtml(lesson.originalSubject)} · ${escapeHtml(lesson.subjectNote || "当日调整")}</p>` : ""}${summaryCompact(lesson)}</div><div class="list-actions"><button class="button ghost" type="button" data-rename="${lesson.id}">改课名</button>${canEdit ? `<button class="button primary" type="button" data-feedback="${lesson.id}">${lesson.status === "correction" ? "修改反馈" : "填写反馈"}</button>` : `<button class="button ghost" type="button" data-toast="该记录当前不可修改">查看记录</button>`}</div></article>`;
+      return `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time}</span><span class="status ${tone}">${label}</span>${adjusted ? `<span class="status blue">已调整</span>` : ""}</div><div class="course-title-row"><h3>${escapeHtml(lesson.subject)}</h3><button class="rename-link" type="button" data-rename="${lesson.id}">改课名</button></div>${adjusted ? `<p class="rename-note">原课：${escapeHtml(lesson.originalSubject)} · ${escapeHtml(lesson.subjectNote || "当日调整")}</p>` : ""}${summaryCompact(lesson)}</div><div class="list-actions">${canEdit ? `<button class="button primary" type="button" data-feedback="${lesson.id}">${lesson.status === "correction" ? "修改反馈" : "填写反馈"}</button>` : `<button class="button ghost" type="button" data-toast="该记录当前不可修改">查看记录</button>`}</div></article>`;
     }).join("")}</div>
   `;
 }
 
 function renderTimetable() {
   const tt = state.timetable;
+  const plan = state.interventionPlan;
   const totalLessons = tt.rows.reduce((sum, row) => sum + row.subjects.length, 0);
   return `
     ${pageHeader("学期课表", `${tt.term} · 一学期一更新`, `<button class="button primary" type="button" data-upload-timetable>上传更新课表</button>`)}
@@ -658,15 +657,12 @@ function renderTimetable() {
       </table>
     </div>
     <p class="table-foot">已数字化 ${totalLessons} 节课 · 最近更新 ${tt.updatedAt}</p>
-  `;
-}
-
-function renderPlan() {
-  const plan = state.interventionPlan;
-  return `
-    ${pageHeader("学期干预计划", `${plan.term} · 由影子老师维护，家长端同步展示`, `<button class="button primary" type="button" data-add-plan>新增阶段</button>`)}
-    <div class="plan-list">${plan.items.map((item) => renderPlanItemCard(item, true)).join("")}</div>
-    <p class="table-foot">最近更新 ${plan.updatedAt}</p>
+    <section class="section">
+      <div class="section-title"><h2>学期干预计划</h2><span>${plan.term} · 家长端同步</span></div>
+      <div class="plan-list">${plan.items.map((item) => renderPlanItemCard(item, true)).join("")}</div>
+      <div style="margin-top:14px"><button class="button secondary" type="button" data-add-plan>新增阶段</button></div>
+      <p class="table-foot">计划最近更新 ${plan.updatedAt}</p>
+    </section>
   `;
 }
 
@@ -691,7 +687,7 @@ function renderCredit() {
     <section class="section">
       <div class="section-title"><h2>${state.child.alias}毕业提名</h2><span class="status ${g.status === 4 ? "green" : "amber"}">${graduationLabel(g.status)}</span></div>
       ${renderGraduationSteps(g.status)}
-      ${g.status === 0 ? `<button class="button primary" type="button" data-grad-action="nominate">提名为${g.result}</button>` : ""}
+      ${g.status === 0 ? `<button class="button primary" type="button" data-grad-action="nominate">毕业提名</button>` : ""}
       ${g.status > 0 && g.status < 4 ? `<div class="notice">提名已提交，后续结果只有完成心理观察、督导审核和家长确认后才计入专业信用。</div>` : ""}
     </section>
   `;
