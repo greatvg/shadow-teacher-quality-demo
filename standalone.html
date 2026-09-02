@@ -1588,7 +1588,7 @@ textarea:focus-visible {
   opacity: 0.92;
 }
 
-/* ===== 记录端 v1.1：课级轻记 + ABC + 收口 + AI 督导助理 ===== */
+/* ===== 记录端 v1.1：课级轻记 + ABC + 放学小结 + AI 督导助理 ===== */
 .close-card {
   background: var(--green-soft);
   border: 1px solid #cfe3d8;
@@ -1762,11 +1762,23 @@ textarea:focus-visible {
   .agg-grid { grid-template-columns: repeat(2, 1fr); }
   .goal-row { flex-direction: column; align-items: flex-start; }
 }
+
+/* ---- 打分说明 / 策略多条 / 图例 ---- */
+.slider-desc { margin: 2px 0 6px; font-size: 12.5px; color: var(--ink-soft, #555); line-height: 1.5; }
+.slider-anchor { margin: 4px 0 0; font-size: 11.5px; color: var(--muted); }
+.slider-dir { font-size: 11.5px; color: var(--muted); margin-left: 8px; }
+.strategy-block { margin-top: 4px; }
+.strategy-title { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.strategy-list { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.strategy-list li { font-size: 13.5px; line-height: 1.55; }
+.dbr-legend { margin: 10px 0 14px; font-size: 12px; color: var(--muted); background: rgba(0, 0, 0, 0.03); border-radius: 10px; padding: 8px 12px; line-height: 1.6; }
+.src-note { margin: 6px 0 0; font-size: 11px; color: var(--muted); line-height: 1.7; }
+.src-note + .src-note { margin-top: 4px; }
 </style>
   </head>
   <body>
     <div id="app"></div>
-    <script>const STORAGE_KEY = "shadowTeacherQualityDemoV2";
+    <script>const STORAGE_KEYconst STORAGE_KEY = "shadowTeacherQualityDemoV2";
 const EXPERIENCE_FEEDBACK_KEY = "shadowTeacherExperienceFeedbackV1";
 
 const DEFAULT_STATE = {
@@ -1892,7 +1904,7 @@ const DEFAULT_STATE = {
         { category: "学习习惯", tone: "progress", text: "按视觉清单完成书包整理，第二项需要一次手势提示，随后独立进入教室。" },
         { category: "情绪控制", tone: "progress", text: "进入教室情绪平稳，未出现抗拒或退缩。" }
       ],
-      strategy: "先等待5秒，再使用最小手势提示。",
+      strategies: ["先等待 5 秒，再使用最小手势提示。", "进教室前在门口预告今天第一项任务。"],
       media: "assets/feedback-reading.svg",
       schoolTeacher: "王老师",
       schoolComment: "记录属实。今天进入教室比上周更从容。",
@@ -1913,7 +1925,7 @@ const DEFAULT_STATE = {
         { category: "学习习惯", tone: "progress", text: "小组朗读持续参与12分钟，中途自行使用暂停卡1次。" },
         { category: "情绪控制", tone: "serious", text: "分组变化时出现一次烦躁，短暂离座，经口头提示后回到座位。" }
       ],
-      strategy: "将朗读任务分成两段，完成第一段后给出同伴强化。",
+      strategies: ["将朗读任务分成两段，完成第一段后给出同伴强化。", "提供可视化任务单，完成一项勾一项。", "分组变化当天安排固定座位并提前告知。"],
       media: "assets/feedback-reading.svg",
       schoolTeacher: "张老师",
       schoolComment: "属实。暂停后能回到任务，恢复速度有进步。",
@@ -1934,7 +1946,7 @@ const DEFAULT_STATE = {
         { category: "学习习惯", tone: "progress", text: "能按步骤完成分类任务，保持专注约18分钟。" },
         { category: "情绪控制", tone: "progress", text: "轮候等待期间情绪平稳，能接受同伴先完成。" }
       ],
-      strategy: "使用轮次卡，并在等待成功后立即给予具体表扬。",
+      strategies: ["使用轮次卡，并在等待成功后立即给予具体表扬。", "活动转换前 2 分钟给出倒计时提醒。"],
       media: "assets/feedback-math.svg",
       schoolTeacher: "王老师",
       schoolComment: "",
@@ -1955,7 +1967,7 @@ const DEFAULT_STATE = {
         { category: "学习习惯", tone: "progress", text: "" },
         { category: "情绪控制", tone: "progress", text: "" }
       ],
-      strategy: "",
+      strategies: [],
       media: "assets/feedback-math.svg",
       schoolTeacher: "李老师",
       schoolComment: "",
@@ -2331,11 +2343,18 @@ function renderTeacherDetail(id) {
 
 const SUMMARY_CATEGORIES = ["社交情况", "学习习惯", "情绪控制"];
 
+// 学术来源标注（老师打分页与家长端均可见；未来家长日报导出直接复用）
+const SOURCE_NOTES = {
+  dbr: "量表来源：DBR-SIS 单条目直接行为评定量表，改编自美国康涅狄格大学（University of Connecticut）Neag 教育学院研究团队开发的标准量表（30+ 篇同行评审研究支持）；「情绪调节」为面向陪读场景的扩展维度。",
+  abc: "记录结构来源：改编自弗吉尼亚联邦大学（VCU）自闭症卓越中心 FBA/BIP 手册（2017）与范德堡大学 TRIAD 结构化 ABC 分析表（Iwata 体系）。",
+  daily: "工具来源：三问聚合 DBR-SIS（康涅狄格大学）｜目标打卡 DRC 每日报告卡（Fabiano，佛罗里达国际大学）｜辅助层级六档（BACB 行为分析师技术规范）。"
+};
+
 const DBR_DIMENSIONS = [
-  { key: "academicEngagement", label: "学业投入", low: "全程未参与", high: "全程独立投入", good: "high" },
-  { key: "disruptive", label: "干扰行为", low: "无干扰", high: "持续严重干扰", good: "low" },
-  { key: "socialRule", label: "社交规则", low: "频繁违反", high: "完全遵守", good: "high" },
-  { key: "emotionRegulation", label: "情绪调节", low: "多次失控行为", high: "情绪平稳", good: "high", optional: true }
+  { key: "academicEngagement", label: "学业投入", low: "全程未参与", high: "全程独立投入", good: "high", desc: "听讲、举手答问、跟做任务等主动参与学习的程度" },
+  { key: "disruptive", label: "干扰行为", low: "无干扰", high: "持续严重干扰", good: "low", desc: "离座、喧哗、逗弄同伴等打断教学的行为多少——注意：分数越高越需要关注" },
+  { key: "socialRule", label: "社交规则", low: "频繁违反", high: "完全遵守", good: "high", desc: "遵守课堂与校园规则、礼貌对待师生的程度" },
+  { key: "emotionRegulation", label: "情绪调节", low: "多次失控行为", high: "情绪平稳", good: "high", optional: true, desc: "受挫后平复、活动转换时管理情绪的能力" }
 ];
 
 const PROMPT_LEVELS = [
@@ -2449,6 +2468,12 @@ function renderToday() {
   `;
 }
 
+function strategyList(lesson) {
+  const items = lesson.strategies || [lesson.strategy].filter(Boolean);
+  if (!items.length) return "";
+  return `<div class="strategy-block"><div class="strategy-title">支持策略 · ${items.length} 条</div><ul class="strategy-list">${items.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul></div>`;
+}
+
 function renderTimelineItem(lesson) {
   const [label, tone] = statusLabel(lesson.status);
   return `
@@ -2457,10 +2482,7 @@ function renderTimelineItem(lesson) {
       ${summaryDetail(lesson)}
       <div class="evidence">
         <img src="${lesson.media}" alt="${lesson.subject}匿名化演示记录" />
-        <div>
-          <p><strong>支持策略：</strong>${escapeHtml(lesson.strategy)}</p>
-          <div class="comment" style="margin-top:12px">${lesson.status === "verified" ? `<strong>${lesson.schoolTeacher}：</strong>${escapeHtml(lesson.schoolComment || "确认属实")}` : "等待校内老师确认"}</div>
-        </div>
+        <div>${strategyList(lesson)}</div>
       </div>
     </article>
   `;
@@ -2522,20 +2544,23 @@ function renderSchedule() {
   const closeCard = `
     <article class="close-card">
       <div class="close-head">
-        <div><h3>放学收口</h3><p>${closeRecord ? `今日已收口 · 目标达成 ${closeDone}/${closeRecord.goalChecks.length}${closeRecord.confusions ? " · 困惑待跟进" : ""}` : "目标打卡 + 辅助六档 + 亮点困惑 + 明日计划"}</p></div>
-        <button class="button ${closeRecord ? "ghost" : "primary"}" type="button" data-daily-close>${closeRecord ? "查看 / 修改" : "开始收口 · 90 秒"}</button>
+        <div><h3>放学小结</h3><p>${closeRecord ? `今日已完成小结 · 目标达成 ${closeDone}/${closeRecord.goalChecks.length}${closeRecord.confusions ? " · 困惑待跟进" : ""}` : "目标打卡 + 辅助六档 + 亮点困惑 + 明日计划"}</p></div>
+        <button class="button ${closeRecord ? "ghost" : "primary"}" type="button" data-daily-close>${closeRecord ? "查看 / 修改" : "开始小结 · 90 秒"}</button>
       </div>
       <p class="close-foot">已记录 ${recorded} 节课 · ABC 事件 ${abcToday} 条 · 三问分数自动聚合各课打分，无需重复填</p>
     </article>`;
   return `
-    ${pageHeader("今日课表", `${state.child.alias} · 课间 10 秒打分，放学 90 秒收口`)}
+    ${pageHeader("今日课表", `${state.child.alias} · 课间 10 秒打分，放学 90 秒小结`)}
     ${closeCard}
     <div class="summary-grid">
       <div class="summary"><span>已记录</span><strong>${recorded}</strong></div>
       <div class="summary" style="--accent:var(--amber)"><span>待填写</span><strong>${draft}</strong></div>
       <div class="summary" style="--accent:var(--blue)"><span>ABC 事件</span><strong>${abcToday}</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>收口</span><strong>${closeRecord ? "已完成" : "待进行"}</strong></div>
+      <div class="summary" style="--accent:var(--coral)"><span>小结</span><strong>${closeRecord ? "已完成" : "待进行"}</strong></div>
     </div>
+    <p class="dbr-legend">打分说明：学业投入 / 社交规则 / 情绪调节，分高=表现好；<b>干扰行为，分高=需关注</b>。区间：1-3 低 · 4-7 中 · 8-10 高。</p>
+    <p class="src-note">${SOURCE_NOTES.dbr}</p>
+    <p class="src-note">${SOURCE_NOTES.abc}</p>
     <div class="list">${state.lessons.map((lesson) => {
       const [label, tone] = statusLabel(lesson.status);
       const adjusted = lesson.subject !== lesson.originalSubject;
@@ -2689,15 +2714,21 @@ function renderSummaryFormFields(lesson) {
 function renderDbrModal(lessonId) {
   const lesson = state.lessons.find((item) => item.id === lessonId);
   if (!lesson) return "";
+  const existing = hasDbr(lesson);
   const sliders = DBR_DIMENSIONS.map((dim) => {
     const current = lesson.dbr ? lesson.dbr[dim.key] : null;
     const value = current !== null && current !== undefined ? current : (dim.optional ? "" : 5);
+    const dirty = current !== null && current !== undefined ? ' data-dirty="1"' : "";
+    const dir = dim.good === "high" ? "分高=表现好" : "分高=需关注";
     return `
       <div class="slider-row">
-        <div class="slider-label"><strong>${dim.label}${dim.optional ? "（可选）" : ""}</strong><span class="slider-hint">${dim.low} ← → ${dim.high}</span></div>
-        <div class="slider-line"><input type="range" min="0" max="10" step="1" name="${dim.key}" value="${value}" ${dim.optional ? "" : "required"} /><output class="slider-value">${value === "" ? "—" : value}</output></div>
+        <div class="slider-label"><strong>${dim.label}${dim.optional ? "（可选）" : ""}</strong><span class="slider-dir">${dir}</span></div>
+        <p class="slider-desc">${dim.desc}</p>
+        <div class="slider-line"><input type="range" min="0" max="10" step="1" name="${dim.key}" value="${value}"${dirty} ${dim.optional ? "" : "required"} /><output class="slider-value">${value === "" ? "—" : value}</output></div>
+        <p class="slider-anchor">0=完全没有 ｜ <b>1-3 低 · 4-7 中 · 8-10 高</b> ｜ 10=${dim.high}</p>
       </div>`;
   }).join("");
+  const submitLabel = existing ? "保存打分" : "拉动 3 个滑条后保存";
   const body = `<form id="dbr-form"><div class="modal-body"><div class="form-grid">
     <div class="field"><label>课程</label><input class="input" value="${escapeHtml(lesson.subject)}" disabled /></div>
     <div class="field"><label>时间</label><input class="input" value="${lesson.time}" disabled /></div>
@@ -2705,8 +2736,9 @@ function renderDbrModal(lessonId) {
     <div class="field full"><label>高频行为计数（每节数次的小动作，用计数不用 ABC）</label><div class="stepper"><button class="button ghost" type="button" data-step="-1">−</button><output id="freq-value">${lesson.frequencyCount || 0}</output><button class="button ghost" type="button" data-step="1">＋</button></div></div>
     <div class="field full"><label for="dbr-note">一句话备注（选填）</label><input class="input" id="dbr-note" name="note" value="${escapeHtml(lesson.note || "")}" placeholder="例如：换同桌后前 10 分钟坐不住" /></div>
     <div class="field full"><button class="link-button" type="button" data-switch-abc>发生了具体事件？记一条 ABC（30 秒）→</button></div>
-  </div></div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">保存打分</button></div></form>`;
-  return modalFrame("下课打分 · 约 10 秒", body, "");
+    <div class="field full"><p class="src-note">${SOURCE_NOTES.dbr}</p></div>
+  </div></div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit" id="dbr-submit" ${existing ? "" : "disabled"}>${submitLabel}</button></div></form>`;
+  return modalFrame("下课打分 · 约 10 秒", body, "凭整节课的总体印象打分，没有标准答案；每个必填滑条都拉动后才能保存。");
 }
 
 function renderAbcModal(lessonId) {
@@ -2719,6 +2751,7 @@ function renderAbcModal(lessonId) {
     <div class="field full" style="margin-top:12px"><label for="abc-behavior">行为 B（可观察的动作，一句话）</label><input class="input" id="abc-behavior" name="behavior" required placeholder="例如：拍桌并离开座位" /></div>
     <fieldset class="fieldset" style="margin-top:12px"><legend>后果 C（之后发生了什么）</legend><div class="chip-group">${chips(CONSEQUENCES, "consequence")}</div><textarea class="textarea other-text" name="consequenceOther" placeholder="选「其他」时写一句话"></textarea></fieldset>
     <fieldset class="fieldset" style="margin-top:12px"><legend>强度</legend><div class="chip-group">${INTENSITIES.map((item, index) => `<label class="chip"><input type="radio" name="intensity" value="${item}" ${index === 1 ? "checked" : ""} /> ${item}</label>`).join("")}</div></fieldset>
+    <p class="src-note" style="margin-top:10px">${SOURCE_NOTES.abc}</p>
   </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">保存事件</button></div></form>`;
   return modalFrame("记录 ABC 事件 · 约 30 秒", body, "");
 }
@@ -2747,15 +2780,15 @@ function renderDailyCloseModal() {
     return `<div class="goal-row"><span>${escapeHtml(goal.text)}</span><select class="select" name="prompt-${goal.id}">${PROMPT_LEVELS.map((item) => `<option value="${item.code}" ${level === item.code ? "selected" : ""}>${item.short}（${item.code}）</option>`).join("")}</select></div>`;
   }).join("");
   const body = `<form id="close-form"><div class="modal-body">
-    <fieldset class="fieldset"><legend>今日三问（自动聚合 ${recorded.length} 节课打分）</legend><div class="agg-grid">${aggregate}</div><p class="agg-foot">无需重复填写；某课打分有偏差，回课表修改即自动更新。</p></fieldset>
+    <fieldset class="fieldset"><legend>今日三问（自动聚合 ${recorded.length} 节课打分）</legend><div class="agg-grid">${aggregate}</div><p class="agg-foot">无需重复填写；某课打分有偏差，回课表修改即自动更新。</p><p class="src-note">${SOURCE_NOTES.daily}</p></fieldset>
     <fieldset class="fieldset" style="margin-top:12px"><legend>目标打卡（正向目标，回家给奖励）</legend>${goalChecks}</fieldset>
     <fieldset class="fieldset" style="margin-top:12px"><legend>今日主要辅助层级（撤辅进度）</legend>${promptRow}<p class="agg-foot">参考规则：同一目标连续 2 次达成自动降一档辅助，连续 2 次未达成升一档。</p></fieldset>
     <div class="field full" style="margin-top:12px"><label for="close-highlights">今日亮点</label><textarea class="textarea" id="close-highlights" name="highlights" placeholder="值得记录的进步瞬间">${escapeHtml(existing ? existing.highlights : "")}</textarea></div>
     <div class="field full"><label for="close-confusions">今日困惑</label><textarea class="textarea" id="close-confusions" name="confusions" placeholder="写下今天没搞定的问题，可一键问 AI 助教">${escapeHtml(existing ? existing.confusions : "")}</textarea></div>
     <div class="field full"><button class="link-button" type="button" data-ask-ai>把困惑交给 AI 督导助理 →</button></div>
     <div class="field full"><label for="close-plan">明日计划（一句话）</label><input class="input" id="close-plan" name="tomorrowPlan" value="${escapeHtml(existing ? existing.tomorrowPlan : "")}" placeholder="例如：数学课前先预告任务步骤" /></div>
-  </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">完成收口</button></div></form>`;
-  return modalFrame("放学收口 · 约 90 秒", body, "");
+  </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">完成小结</button></div></form>`;
+  return modalFrame("放学小结 · 约 90 秒", body, "");
 }
 
 function aiContextSummary() {
@@ -2782,7 +2815,7 @@ function aiReply(question) {
   const weak = state.lessons.filter((lesson) => hasDbr(lesson) && lesson.dbr.disruptive >= 5).map((lesson) => lesson.subject);
   const close = todayCloseRecord();
   const evidence = [lines[0], abcLines[0], close ? `昨日目标达成 ${close.goalChecks.filter((check) => check.done).length}/${close.goalChecks.length}` : ""].filter(Boolean).join("；");
-  return { role: "ai", text: `基于你的记录（${evidence || "暂无记录"}）：\n建议步骤：1）相同情境出现前 2 分钟预告；2）把任务拆成两段，第一段完成立即给具体表扬；3）在收口里记录辅助层级，我帮你追踪褪降进度。观察指标：提示后 3 分钟内回到任务。目前样本还少，连续记 3 天后再下结论。${weak.length ? `今日「干扰行为」偏高的课：${weak.join("、")}。` : ""}` };
+  return { role: "ai", text: `基于你的记录（${evidence || "暂无记录"}）：\n建议步骤：1）相同情境出现前 2 分钟预告；2）把任务拆成两段，第一段完成立即给具体表扬；3）在放学小结里记录辅助层级，我帮你追踪褪降进度。观察指标：提示后 3 分钟内回到任务。目前样本还少，连续记 3 天后再下结论。${weak.length ? `今日「干扰行为」偏高的课：${weak.join("、")}。` : ""}` };
 }
 
 function renderAiChatModal() {
@@ -3078,6 +3111,13 @@ document.addEventListener("input", (event) => {
   if (event.target.matches('#dbr-form input[type="range"]')) {
     const output = event.target.parentElement.querySelector(".slider-value");
     if (output) output.textContent = event.target.value;
+    event.target.dataset.dirty = "1";
+    const requiredSliders = [...document.querySelectorAll('#dbr-form input[type="range"][required]')];
+    const btn = document.querySelector("#dbr-submit");
+    if (btn && requiredSliders.length && requiredSliders.every((el) => el.dataset.dirty)) {
+      btn.disabled = false;
+      btn.textContent = "保存打分";
+    }
   }
 });
 
@@ -3103,6 +3143,11 @@ document.addEventListener("submit", (event) => {
     return;
   }
   if (event.target.matches("#dbr-form")) {
+    const requiredSliders = [...event.target.querySelectorAll('input[type="range"][required]')];
+    if (!requiredSliders.every((el) => el.dataset.dirty)) {
+      showToast("请先给 3 个必填项打分（拉动每个滑条）");
+      return;
+    }
     const lesson = state.lessons.find((item) => item.id === ui.modal.lessonId);
     const form = new FormData(event.target);
     lesson.dbr = {};
@@ -3168,7 +3213,7 @@ document.addEventListener("submit", (event) => {
     if (index >= 0) state.dailyRecords[index] = record;
     else state.dailyRecords.push(record);
     ui.modal = null;
-    saveAndRender("今日收口完成 · 明日计划已留存");
+    saveAndRender("今日小结完成 · 明日计划已留存");
     return;
   }
   if (event.target.matches("#ai-chat-form")) {

@@ -1,6 +1,6 @@
 /**
  * 记录端 v1.1 冒烟测试（jsdom, CJS）
- * 覆盖：角色切换 / 课级10秒打分 / ABC事件 / 放学收口 / AI对话(含危机转人工) / 其余端兼容
+ * 覆盖：角色切换 / 课级10秒打分 / ABC事件 / 放学小结 / AI对话(含危机转人工) / 其余端兼容
  * 运行：NODE_PATH=<workspace>/node_modules node smoke-test.cjs
  */
 const { JSDOM, VirtualConsole } = require("jsdom");
@@ -59,17 +59,20 @@ async function main() {
 
   // ---- 1. 默认家长端渲染 ----
   check("家长端默认渲染", text().includes("小宇的今天"), "title=" + dom.window.document.title);
+  check("时间线无「等待校内老师确认」残留", !text().includes("等待校内老师确认"));
+  check("时间线策略多条渲染", qa(".strategy-list li").length >= 5, `li=${qa(".strategy-list li").length}`);
 
   // ---- 2. 切换影子老师端（含微信授权门）----
   switchRole("shadow");
   const authBtn = q("[data-auth-shadow]");
   check("授权门出现", !!authBtn);
   if (authBtn) clickBtn(authBtn);
-  check("影子老师端渲染·收口卡", text().includes("放学收口"));
+  check("影子老师端渲染·小结卡", text().includes("放学小结"));
   check("影子老师端渲染·课表头", text().includes("课间 10 秒打分"));
   check("课卡片含打分/ABC按钮", qa("[data-dbr]").length >= 4 && qa("[data-abc]").length >= 4, `dbr=${qa("[data-dbr]").length} abc=${qa("[data-abc]").length}`);
 
   // ---- 3. 课级 10 秒打分（数学课 draft → recorded）----
+  check("课表页展示学术来源(家长端同视图可见)", text().includes("康涅狄格大学") && text().includes("范德堡"), `康涅狄格=${text().includes("康涅狄格大学")} 范德堡=${text().includes("范德堡")}`);
   const mathDbrBtn = qa("[data-dbr]").find((b) => b.dataset.dbr === "math");
   clickBtn(mathDbrBtn);
   const dbrForm = q("#dbr-form");
@@ -77,7 +80,13 @@ async function main() {
   if (dbrForm) {
     const sliders = qa("#dbr-form input[type=range]");
     check("DBR滑条数量=4(三构念+可选情绪)", sliders.length === 4, `实际=${sliders.length}`);
+    check("打分说明锚点存在", text().includes("1-3 低") && text().includes("分高=需关注"));
+    check("打分弹窗标注量表来源(DBR-SIS·康涅狄格大学)", dbrForm.textContent.includes("康涅狄格大学") && dbrForm.textContent.includes("DBR-SIS"));
+    check("来源标注含诚实扩展说明(情绪调节)", dbrForm.textContent.includes("扩展维度"));
+    const submitBtn = q("#dbr-submit");
+    check("防偷懒:未动滑条时保存按钮disabled", submitBtn && submitBtn.disabled === true, "disabled=" + (submitBtn && submitBtn.disabled));
     sliders.forEach((s) => { s.value = "6"; s.dispatchEvent(new dom.window.Event("input", { bubbles: true })); });
+    check("拉动3滑条后保存按钮启用", submitBtn && submitBtn.disabled === false, "disabled=" + (submitBtn && submitBtn.disabled));
     submitForm(dbrForm);
     const math = (loadState().lessons || []).find((l) => l.id === "math");
     check("数学课打分已持久化", math && math.dbr && math.dbr.academicEngagement === 6, JSON.stringify((math && math.dbr) || {}));
@@ -90,6 +99,7 @@ async function main() {
   const abcForm = q("#abc-form");
   check("ABC弹窗打开", !!abcForm);
   if (abcForm) {
+    check("ABC弹窗标注结构来源(VCU·范德堡TRIAD)", abcForm.textContent.includes("弗吉尼亚联邦大学") && abcForm.textContent.includes("范德堡"));
     const ant = abcForm.querySelector('input[name="antecedent"]');
     const con = abcForm.querySelector('input[name="consequence"]');
     if (ant) { ant.checked = true; ant.dispatchEvent(new dom.window.Event("change", { bubbles: true })); }
@@ -104,12 +114,13 @@ async function main() {
     check("ABC事件挂载lessonId", !!mathEv, mathEv ? `lessonId=${mathEv.lessonId || mathEv.subject}` : "未找到");
   }
 
-  // ---- 5. 放学收口 ----
+  // ---- 5. 放学小结 ----
   clickBtn(q("[data-daily-close]"));
   const closeForm = q("#close-form");
-  check("收口弹窗打开", !!closeForm);
+  check("小结弹窗打开", !!closeForm);
   if (closeForm) {
     check("三问自动聚合提示存在", closeForm.textContent.includes("自动聚合"));
+    check("小结弹窗标注工具来源(DRC·FIU·BACB)", closeForm.textContent.includes("佛罗里达国际大学") && closeForm.textContent.includes("BACB"));
     const radio = closeForm.querySelector('input[type=radio][value="done"]');
     if (radio) { radio.checked = true; radio.dispatchEvent(new dom.window.Event("change", { bubbles: true })); }
     const hl = closeForm.querySelector("#close-highlights");
@@ -118,7 +129,7 @@ async function main() {
     if (plan) plan.value = "数学课前预告任务步骤";
     submitForm(closeForm);
     const closeArr = loadState().dailyRecords || [];
-    check("收口记录已持久化", closeArr.length >= 1, closeArr.length ? `date=${closeArr[closeArr.length - 1].date} goals=${closeArr[closeArr.length - 1].goalChecks.length}` : "未找到dailyRecords");
+    check("小结记录已持久化", closeArr.length >= 1, closeArr.length ? `date=${closeArr[closeArr.length - 1].date} goals=${closeArr[closeArr.length - 1].goalChecks.length}` : "未找到dailyRecords");
   }
 
   // ---- 6. AI 对话：危机转人工 + 引用记录（入口在「在线督导」页）----
