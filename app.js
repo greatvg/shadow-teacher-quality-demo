@@ -115,7 +115,10 @@ const DEFAULT_STATE = {
       subject: "晨间准备",
       originalSubject: "晨间准备",
       subjectNote: "",
-      status: "verified",
+      status: "recorded",
+      dbr: { academicEngagement: 8, disruptive: 1, socialRule: 9, emotionRegulation: 8 },
+      frequencyCount: 0,
+      note: "进入教室比上周更从容。",
       summary: [
         { category: "社交情况", tone: "progress", text: "主动与同桌打招呼，等待老师安排时没有催促。" },
         { category: "学习习惯", tone: "progress", text: "按视觉清单完成书包整理，第二项需要一次手势提示，随后独立进入教室。" },
@@ -133,7 +136,10 @@ const DEFAULT_STATE = {
       subject: "语文课",
       originalSubject: "语文课",
       subjectNote: "",
-      status: "verified",
+      status: "recorded",
+      dbr: { academicEngagement: 7, disruptive: 4, socialRule: 8, emotionRegulation: 5 },
+      frequencyCount: 1,
+      note: "",
       summary: [
         { category: "社交情况", tone: "progress", text: "主动举手回答1次，小组合读时能轮流等待发言。" },
         { category: "学习习惯", tone: "progress", text: "小组朗读持续参与12分钟，中途自行使用暂停卡1次。" },
@@ -151,7 +157,10 @@ const DEFAULT_STATE = {
       subject: "综合实践",
       originalSubject: "综合实践",
       subjectNote: "",
-      status: "pending",
+      status: "recorded",
+      dbr: { academicEngagement: 6, disruptive: 5, socialRule: 7, emotionRegulation: 6 },
+      frequencyCount: 2,
+      note: "",
       summary: [
         { category: "社交情况", tone: "serious", text: "与同伴共同完成材料分类时出现一次抢拿，经口头提示后归还并等待轮次。" },
         { category: "学习习惯", tone: "progress", text: "能按步骤完成分类任务，保持专注约18分钟。" },
@@ -170,6 +179,9 @@ const DEFAULT_STATE = {
       originalSubject: "数学课",
       subjectNote: "",
       status: "draft",
+      dbr: { academicEngagement: null, disruptive: null, socialRule: null, emotionRegulation: null },
+      frequencyCount: 0,
+      note: "",
       summary: [
         { category: "社交情况", tone: "progress", text: "" },
         { category: "学习习惯", tone: "progress", text: "" },
@@ -180,6 +192,26 @@ const DEFAULT_STATE = {
       schoolTeacher: "李老师",
       schoolComment: "",
       updatedAt: ""
+    }
+  ],
+  goals: [
+    { id: "g-01", text: "上课举手发言 3 次", active: true },
+    { id: "g-02", text: "等待轮次，不抢拿物品", active: true },
+    { id: "g-03", text: "独立完成课堂任务单", active: true }
+  ],
+  abcEvents: [
+    { id: "abc-101", lessonId: "chinese", time: "10:20", subject: "语文课", antecedent: "转换/被打断", behavior: "分组变化时短暂离座", consequence: "给予关注/安抚", intensity: "轻", otherText: "" },
+    { id: "abc-102", lessonId: "activity", time: "14:00", subject: "综合实践", antecedent: "等待（排队/轮流）", behavior: "抢拿同伴材料一次", consequence: "撤销要求/任务暂停", intensity: "中", otherText: "" }
+  ],
+  dailyRecords: [
+    {
+      date: "2026-09-01",
+      goalChecks: [ { goalId: "g-01", done: true }, { goalId: "g-02", done: false }, { goalId: "g-03", done: true } ],
+      promptLevels: { "g-01": "V", "g-02": "G", "g-03": "M" },
+      highlights: "轮到值日生时主动站了起来，全班只有他记得。",
+      confusions: "",
+      tomorrowPlan: "数学课前先预告任务步骤。",
+      aiAsked: false
     }
   ],
   graduation: {
@@ -197,9 +229,8 @@ const roleConfig = {
   parent: {
     label: "家长端",
     name: "小宇家长",
-    defaultPage: "market",
+    defaultPage: "today",
     nav: [
-      { id: "market", label: "找老师", icon: "⌕" },
       { id: "today", label: "孩子今日", icon: "◷" },
       { id: "growth", label: "成长档案", icon: "↗" },
       { id: "profile", label: "我的", icon: "○" }
@@ -225,17 +256,6 @@ const roleConfig = {
       { id: "review", label: "待我确认", icon: "✓" },
       { id: "history", label: "确认记录", icon: "≡" }
     ]
-  },
-  specialist: {
-    label: "专业审核端",
-    name: "平台督导",
-    defaultPage: "dashboard",
-    nav: [
-      { id: "dashboard", label: "工作台", icon: "▦" },
-      { id: "certification", label: "认证审核", icon: "◇" },
-      { id: "graduation", label: "毕业认证", icon: "✓" },
-      { id: "exceptions", label: "异常记录", icon: "!" }
-    ]
   }
 };
 
@@ -249,7 +269,8 @@ let ui = {
   query: "",
   sort: "recommend",
   modal: null,
-  toast: ""
+  toast: "",
+  auth: loadAuth()
 };
 
 const initialParams = new URLSearchParams(window.location.search);
@@ -265,6 +286,20 @@ let toastTimer;
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));
+}
+
+function loadAuth() {
+  try {
+    const v = JSON.parse(localStorage.getItem("shadowTeacherAuthV1"));
+    if (v && typeof v === "object") return { shadow: !!v.shadow, school: !!v.school };
+  } catch (e) {}
+  return { shadow: false, school: false };
+}
+
+function saveAuth() {
+  try {
+    localStorage.setItem("shadowTeacherAuthV1", JSON.stringify(ui.auth));
+  } catch (e) {}
 }
 
 function loadState() {
@@ -305,6 +340,7 @@ function escapeHtml(value = "") {
 function statusLabel(status) {
   return {
     draft: ["待填写", "amber"],
+    recorded: ["已记录", "blue"],
     pending: ["待校方确认", "amber"],
     verified: ["校方已确认", "green"],
     correction: ["需修正", "coral"]
@@ -338,35 +374,35 @@ function render() {
     <div class="shell">
       <header class="topbar">
         <div class="brand">
-          <span class="brand-mark">质</span>
+          <span class="brand-mark">融</span>
           <span>
-            <strong>融合教育数字化智能工具</strong>
+            <strong>影子陪读融合工具</strong>
             <small>演示数据</small>
           </span>
         </div>
         <div class="role-control">
-          <label for="role-select">当前视角</label>
           <select id="role-select" class="select" aria-label="切换演示角色">
-            ${Object.entries(roleConfig).filter(([id]) => id !== "specialist").map(([id, config]) => `<option value="${id}" ${id === ui.role ? "selected" : ""}>${config.label}</option>`).join("")}
+            ${Object.entries(roleConfig).map(([id, config]) => `<option value="${id}" ${id === ui.role ? "selected" : ""}>${config.label}</option>`).join("")}
           </select>
         </div>
       </header>
       <div class="layout">
         <aside class="sidebar">
+          ${ui.role === "school" && !ui.auth.school || ui.role === "shadow" && !ui.auth.shadow ? "" : `
           ${renderNav(role.nav)}
           <div class="sidebar-footer">
             <button class="feedback-button" type="button" data-experience-feedback>体验反馈${experienceFeedback.length ? ` · ${experienceFeedback.length}` : ""}</button>
             <button class="reset-button" type="button" data-reset>重置演示数据</button>
-          </div>
+          </div>`}
         </aside>
         <main class="main">
           <div class="content">${renderPage()}</div>
         </main>
       </div>
-      <nav class="mobile-nav" style="--nav-count:${role.nav.length}" aria-label="主导航">
+      ${ui.role === "school" && !ui.auth.school || ui.role === "shadow" && !ui.auth.shadow ? "" : `<nav class="mobile-nav" style="--nav-count:${role.nav.length}" aria-label="主导航">
         ${renderNav(role.nav)}
       </nav>
-      <button class="feedback-fab" type="button" data-experience-feedback aria-label="提交体验反馈" title="提交体验反馈">✎</button>
+      <button class="feedback-fab" type="button" data-experience-feedback aria-label="提交体验反馈" title="提交体验反馈">✎</button>`}
       ${renderModal()}
       ${ui.toast ? `<div class="toast" role="status">${escapeHtml(ui.toast)}</div>` : ""}
     </div>
@@ -384,6 +420,9 @@ function renderNav(items) {
 
 function renderPage() {
   if (ui.teacherId) return renderTeacherDetail(ui.teacherId);
+  if (ui.role === "parent" && ui.page === "market") ui.page = "today";
+  if (ui.role === "school" && !ui.auth.school) return renderAuthGate("school");
+  if (ui.role === "shadow" && !ui.auth.shadow) return renderAuthGate("shadow");
   const key = `${ui.role}:${ui.page}`;
   const views = {
     "parent:market": renderMarket,
@@ -396,13 +435,30 @@ function renderPage() {
     "shadow:credit": renderCredit,
     "shadow:supervision": renderSupervision,
     "school:review": renderReview,
-    "school:history": renderReviewHistory,
-    "specialist:dashboard": renderDashboard,
-    "specialist:certification": renderCertification,
-    "specialist:graduation": renderGraduation,
-    "specialist:exceptions": renderExceptions
+    "school:history": renderReviewHistory
   };
-  return (views[key] || renderMarket)();
+  return (views[key] || renderToday)();
+}
+
+function renderAuthGate(role) {
+  if (role === "shadow") {
+    return `
+      <div class="auth-gate">
+        <div class="auth-gate-icon">🔒</div>
+        <h1 class="auth-gate-title">影子老师身份授权</h1>
+        <p class="auth-gate-desc">为保护儿童支持记录与专业干预计划，仅本儿童对应的影子老师可查看课表、服务档案与专业信用。请点击下方按钮使用微信身份授权。</p>
+        <button class="auth-btn" type="button" data-auth-shadow>微信授权后查看</button>
+      </div>
+    `;
+  }
+  return `
+    <div class="auth-gate">
+      <div class="auth-gate-icon">🔒</div>
+      <h1 class="auth-gate-title">校内老师身份授权</h1>
+      <p class="auth-gate-desc">为保护课堂反馈记录，仅授权的校内老师可查看待确认与历史核验内容。请点击下方按钮使用微信身份授权。</p>
+      <button class="auth-btn" type="button" data-auth-school>微信授权后查看</button>
+    </div>
+  `;
 }
 
 function pageHeader(title, subtitle, action = "") {
@@ -447,7 +503,7 @@ function renderTeacherCard(teacher) {
           <div class="teacher-name"><h2>${teacher.name}</h2>${teacher.certified ? `<span class="verified" title="平台认证">✓</span>` : ""}</div>
           <div class="teacher-subtitle">${teacher.title}</div>
         </div>
-        <div class="price">¥${teacher.price}<small>/天</small></div>
+        <div class="price">面议</div>
       </div>
       <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}${!teacher.certified ? `<span class="status amber">认证中</span>` : ""}</div>
       <div class="card-stats">
@@ -476,7 +532,7 @@ function renderTeacherDetail(id) {
         <div class="teacher-subtitle">${teacher.title}</div>
         <div class="tags">${teacher.tags.map((tag) => `<span class="tag">${tag}</span>`).join("")}</div>
       </div>
-      <button class="button primary" type="button" data-consult="${teacher.id}" ${consulted ? "disabled" : ""}>${consulted ? "已申请咨询" : `申请咨询 · ¥${teacher.price}/天`}</button>
+      <button class="button primary" type="button" data-consult="${teacher.id}" ${consulted ? "disabled" : ""}>${consulted ? "已申请咨询" : "申请咨询"}</button>
     </div>
     <p class="profile-copy">${teacher.description}</p>
     <section class="section">
@@ -485,7 +541,7 @@ function renderTeacherDetail(id) {
         <div class="metric"><strong>${teacher.graduationCount}</strong><span>已确认毕业案例</span></div>
         <div class="metric"><strong>${teacher.supervisionHours}h</strong><span>累计专业督导</span></div>
         <div class="metric"><strong>${teacher.verifyRate}%</strong><span>校方反馈核验率</span></div>
-        <div class="metric"><strong>${teacher.price}</strong><span>每日服务价格（元）</span></div>
+        <div class="metric"><strong>面议</strong><span>每日服务价格</span></div>
       </div>
     </section>
     <section class="section">
@@ -507,17 +563,81 @@ function renderTeacherDetail(id) {
 
 const SUMMARY_CATEGORIES = ["社交情况", "学习习惯", "情绪控制"];
 
+const DBR_DIMENSIONS = [
+  { key: "academicEngagement", label: "学业投入", low: "全程未参与", high: "全程独立投入", good: "high" },
+  { key: "disruptive", label: "干扰行为", low: "无干扰", high: "持续严重干扰", good: "low" },
+  { key: "socialRule", label: "社交规则", low: "频繁违反", high: "完全遵守", good: "high" },
+  { key: "emotionRegulation", label: "情绪调节", low: "多次失控行为", high: "情绪平稳", good: "high", optional: true }
+];
+
+const PROMPT_LEVELS = [
+  { code: "I", label: "独立完成", short: "独立" },
+  { code: "V", label: "语言提示", short: "语言" },
+  { code: "G", label: "手势提示", short: "手势" },
+  { code: "M", label: "示范", short: "示范" },
+  { code: "PP", label: "部分肢体辅助", short: "部分肢体" },
+  { code: "FP", label: "全肢体辅助", short: "全肢体" }
+];
+
+const ANTECEDENTS = [
+  "被要求停止偏好活动", "提出要求被拒绝", "任务太难/不会做", "任务太长或重复",
+  "转换/被打断", "环境刺激（噪音/拥挤）", "等待（排队/轮流）", "被批评或纠正",
+  "注意力在他人身上", "想要但拿不到", "身体不适/疲惫/饥饿", "同伴冲突",
+  "计划外变化", "其他（写一句话）"
+];
+
+const CONSEQUENCES = [
+  "撤销要求/任务暂停", "给予关注/安抚", "给予偏好物", "口头提醒/批评",
+  "移到安静区/暂离", "同伴让步或回应", "忽略（无反应）", "其他（写一句话）"
+];
+
+const INTENSITIES = ["轻", "中", "重"];
+
+const CRISIS_KEYWORDS = ["自伤", "自杀", "咬", "撞头", "攻击", "打人", "伤人", "走失", "跑出", "受伤", "流血"];
+
 function summaryToneLabel(tone) {
   return tone === "serious" ? "需关注" : "进步";
 }
 
+function hasDbr(lesson) {
+  return lesson.dbr && DBR_DIMENSIONS.some((dim) => lesson.dbr[dim.key] !== null && lesson.dbr[dim.key] !== undefined);
+}
+
+function dbrBadgeRow(lesson) {
+  const abcCount = state.abcEvents.filter((event) => event.lessonId === lesson.id).length;
+  const chips = DBR_DIMENSIONS.map((dim) => {
+    const value = lesson.dbr ? lesson.dbr[dim.key] : null;
+    if (value === null || value === undefined) return "";
+    const good = dim.good === "high" ? value >= 7 : value <= 3;
+    const warn = dim.good === "high" ? value <= 4 : value >= 6;
+    const tone = good ? "good" : warn ? "warn" : "mid";
+    return `<span class="dbr-chip ${tone}">${dim.label} ${value}</span>`;
+  }).join("");
+  const abc = abcCount ? `<span class="dbr-chip abc">ABC ×${abcCount}</span>` : "";
+  const freq = lesson.frequencyCount ? `<span class="dbr-chip mid">高频 ×${lesson.frequencyCount}</span>` : "";
+  const note = lesson.note ? `<span class="dbr-note">${escapeHtml(lesson.note)}</span>` : "";
+  return `${chips}${abc}${freq}${note}`;
+}
+
+function abcListFor(lessonId) {
+  const events = state.abcEvents.filter((event) => event.lessonId === lessonId);
+  if (!events.length) return "";
+  return `<div class="abc-list">${events.map((event) => `<div class="abc-item"><span class="status coral">ABC</span><p><strong>前因：</strong>${escapeHtml(event.antecedent)}｜<strong>行为：</strong>${escapeHtml(event.behavior)}｜<strong>后果：</strong>${escapeHtml(event.consequence)}｜强度：${escapeHtml(event.intensity)}${event.otherText ? `｜${escapeHtml(event.otherText)}` : ""}</p></div>`).join("")}</div>`;
+}
+
 function summaryDetail(lesson) {
+  if (hasDbr(lesson)) {
+    return `<div class="summary-detail"><div class="dbr-row big">${dbrBadgeRow(lesson)}</div>${abcListFor(lesson.id)}</div>`;
+  }
   const items = lesson.summary || [];
   if (!items.length) return "";
   return `<div class="summary-detail">${items.map((item) => `<div class="summary-item ${item.tone === "serious" ? "serious" : "progress"}"><div class="summary-cat">${item.category} · ${summaryToneLabel(item.tone)}</div><p class="summary-text">${escapeHtml(item.text || "暂无记录")}</p></div>`).join("")}</div>`;
 }
 
 function summaryCompact(lesson) {
+  if (hasDbr(lesson)) {
+    return `<div class="dbr-row">${dbrBadgeRow(lesson)}</div>`;
+  }
   const items = lesson.summary || [];
   if (!items.some((item) => item.text && item.text.trim())) return `<p class="summary-empty">课后总结待填写</p>`;
   return `<div class="summary-lines">${items.map((item) => `<div class="summary-line ${item.tone === "serious" ? "serious" : "progress"}"><span class="dot"></span><span class="cat">${item.category}</span><span>${escapeHtml(item.text || "暂无记录")}</span></div>`).join("")}</div>`;
@@ -542,19 +662,20 @@ function renderPlanItemCard(item, editable) {
 }
 
 function visibleTimelineLessons() {
-  return state.lessons.filter((lesson) => ["pending", "verified", "correction"].includes(lesson.status));
+  return state.lessons.filter((lesson) => ["recorded", "pending", "verified", "correction"].includes(lesson.status));
 }
 
 function renderToday() {
   const verified = state.lessons.filter((lesson) => lesson.status === "verified").length;
-  const pending = state.lessons.filter((lesson) => lesson.status === "pending").length;
+  const recorded = state.lessons.filter((lesson) => ["recorded", "pending"].includes(lesson.status)).length;
+  const abcToday = state.abcEvents.length;
   return `
     ${pageHeader(`${state.child.alias}的今天`, `${state.child.grade} · ${new Date().toLocaleDateString("zh-CN", { month: "long", day: "numeric", weekday: "long" })}`)}
     <div class="summary-grid">
       <div class="summary" style="--accent:var(--green)"><span>校方已确认</span><strong>${verified}</strong></div>
-      <div class="summary" style="--accent:var(--amber)"><span>等待确认</span><strong>${pending}</strong></div>
-      <div class="summary" style="--accent:var(--blue)"><span>主动参与</span><strong>3次</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>需要提示</span><strong>2次</strong></div>
+      <div class="summary" style="--accent:var(--blue)"><span>已记录</span><strong>${recorded}</strong></div>
+      <div class="summary" style="--accent:var(--amber)"><span>ABC 事件</span><strong>${abcToday}</strong></div>
+      <div class="summary" style="--accent:var(--coral)"><span>待填写</span><strong>${state.lessons.filter((lesson) => ["draft", "correction"].includes(lesson.status)).length}</strong></div>
     </div>
     <div class="timeline">${visibleTimelineLessons().map(renderTimelineItem).join("")}</div>
   `;
@@ -598,13 +719,13 @@ function renderGrowth() {
       <div class="section-title"><h2>学期干预计划</h2><span>${state.interventionPlan.term}</span></div>
       <div class="plan-list">${state.interventionPlan.items.map((item) => renderPlanItemCard(item, false)).join("")}</div>
     </section>
-    <section class="section">
+    ${ui.role === "parent" ? "" : `<section class="section">
       <div class="section-title"><h2>毕业进度</h2><span class="status ${graduation.status === 4 ? "green" : "amber"}">${graduationLabel(graduation.status)}</span></div>
       ${renderGraduationSteps(graduation.status)}
       ${graduation.status === 3 ? `<button class="button primary" type="button" data-grad-action="confirm">确认降级过渡</button>` : ""}
       ${graduation.status < 3 ? `<div class="notice">当前结果意向：${graduation.result}。完成专业审核后由家长最终确认。</div>` : ""}
       ${graduation.status === 4 ? `<div class="notice">该案例已完成四方确认并计入影子老师专业信用。</div>` : ""}
-    </section>
+    </section>`}
   `;
 }
 
@@ -612,29 +733,45 @@ function renderParentProfile() {
   return `
     ${pageHeader("我的", "小宇家长 · 已实名认证")}
     <div class="list">
-      <article class="list-card"><div><h3>当前服务</h3><p>林晓雅 · ¥680/天 · 服务中</p></div><span class="status green">正常</span></article>
+      <article class="list-card"><div><h3>当前服务</h3><p>林晓雅 · 服务中</p></div><span class="status green">正常</span></article>
       <article class="list-card"><div><h3>隐私授权</h3><p>儿童档案、校内记录与专业评估授权</p></div><button class="button ghost" type="button" data-toast="演示版暂不接真实授权">查看</button></article>
       <article class="list-card"><div><h3>咨询申请</h3><p>已提交 ${state.consultedTeacherIds.length} 位老师咨询</p></div><span>›</span></article>
     </div>
   `;
 }
 
+function todayCloseRecord() {
+  const today = new Date().toISOString().slice(0, 10);
+  return state.dailyRecords.find((record) => record.date === today) || null;
+}
+
 function renderSchedule() {
-  const completed = state.lessons.filter((lesson) => lesson.status === "verified").length;
-  const pendingReview = state.lessons.filter((lesson) => lesson.status === "pending").length;
+  const recorded = state.lessons.filter((lesson) => ["recorded", "pending", "verified"].includes(lesson.status)).length;
+  const draft = state.lessons.filter((lesson) => ["draft", "correction"].includes(lesson.status)).length;
+  const abcToday = state.abcEvents.length;
+  const closeRecord = todayCloseRecord();
+  const closeDone = closeRecord ? closeRecord.goalChecks.filter((check) => check.done).length : 0;
+  const closeCard = `
+    <article class="close-card">
+      <div class="close-head">
+        <div><h3>放学收口</h3><p>${closeRecord ? `今日已收口 · 目标达成 ${closeDone}/${closeRecord.goalChecks.length}${closeRecord.confusions ? " · 困惑待跟进" : ""}` : "目标打卡 + 辅助六档 + 亮点困惑 + 明日计划"}</p></div>
+        <button class="button ${closeRecord ? "ghost" : "primary"}" type="button" data-daily-close>${closeRecord ? "查看 / 修改" : "开始收口 · 90 秒"}</button>
+      </div>
+      <p class="close-foot">已记录 ${recorded} 节课 · ABC 事件 ${abcToday} 条 · 三问分数自动聚合各课打分，无需重复填</p>
+    </article>`;
   return `
-    ${pageHeader("今日课表", `${state.child.alias} · 4节支持任务`)}
+    ${pageHeader("今日课表", `${state.child.alias} · 课间 10 秒打分，放学 90 秒收口`)}
+    ${closeCard}
     <div class="summary-grid">
-      <div class="summary"><span>已完成</span><strong>${completed}</strong></div>
-      <div class="summary" style="--accent:var(--amber)"><span>待校方确认</span><strong>${pendingReview}</strong></div>
-      <div class="summary" style="--accent:var(--blue)"><span>待填写</span><strong>${state.lessons.filter((lesson) => lesson.status === "draft").length}</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>需修正</span><strong>${state.lessons.filter((lesson) => lesson.status === "correction").length}</strong></div>
+      <div class="summary"><span>已记录</span><strong>${recorded}</strong></div>
+      <div class="summary" style="--accent:var(--amber)"><span>待填写</span><strong>${draft}</strong></div>
+      <div class="summary" style="--accent:var(--blue)"><span>ABC 事件</span><strong>${abcToday}</strong></div>
+      <div class="summary" style="--accent:var(--coral)"><span>收口</span><strong>${closeRecord ? "已完成" : "待进行"}</strong></div>
     </div>
     <div class="list">${state.lessons.map((lesson) => {
       const [label, tone] = statusLabel(lesson.status);
-      const canEdit = ["draft", "correction"].includes(lesson.status);
       const adjusted = lesson.subject !== lesson.originalSubject;
-      return `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time}</span><span class="status ${tone}">${label}</span>${adjusted ? `<span class="status blue">已调整</span>` : ""}</div><div class="course-title-row"><h3>${escapeHtml(lesson.subject)}</h3><button class="rename-link" type="button" data-rename="${lesson.id}">改课名</button></div>${adjusted ? `<p class="rename-note">原课：${escapeHtml(lesson.originalSubject)} · ${escapeHtml(lesson.subjectNote || "当日调整")}</p>` : ""}${summaryCompact(lesson)}</div><div class="list-actions">${canEdit ? `<button class="button primary" type="button" data-feedback="${lesson.id}">${lesson.status === "correction" ? "修改反馈" : "填写反馈"}</button>` : `<button class="button ghost" type="button" data-toast="该记录当前不可修改">查看记录</button>`}</div></article>`;
+      return `<article class="list-card"><div><div class="list-card-meta"><span>${lesson.time}</span><span class="status ${tone}">${label}</span>${adjusted ? `<span class="status blue">已调整</span>` : ""}</div><div class="course-title-row"><h3>${escapeHtml(lesson.subject)}</h3><button class="rename-link" type="button" data-rename="${lesson.id}">改课名</button></div>${adjusted ? `<p class="rename-note">原课：${escapeHtml(lesson.originalSubject)} · ${escapeHtml(lesson.subjectNote || "当日调整")}</p>` : ""}${summaryCompact(lesson)}</div><div class="list-actions"><button class="button primary" type="button" data-dbr="${lesson.id}">${hasDbr(lesson) ? "修改打分" : "10 秒打分"}</button><button class="button ghost" type="button" data-abc="${lesson.id}">记 ABC 事件</button></div></article>`;
     }).join("")}</div>
   `;
 }
@@ -695,16 +832,24 @@ function renderCredit() {
 
 function renderSupervision() {
   return `
-    ${pageHeader("在线督导", "累计 126 小时 · 本月 4 小时", `<button class="button primary" type="button" data-toast="已生成督导预约演示单">预约督导</button>`)}
-    <div class="list">
-      <article class="list-card"><div><div class="list-card-meta"><span>6月28日 19:30</span><span class="status green">已完成</span></div><h3>支持逐步撤离策略</h3><p>督导：苏老师 · 60分钟 · 记录已归档</p></div><button class="button ghost" type="button" data-toast="已打开督导记录摘要">查看记录</button></article>
-      <article class="list-card"><div><div class="list-card-meta"><span>7月20日 19:30</span><span class="status amber">已预约</span></div><h3>同伴互动泛化</h3><p>督导：苏老师 · 60分钟</p></div><button class="button ghost" type="button" data-toast="演示预约不可变更">管理预约</button></article>
-    </div>
+    ${pageHeader("在线督导", "AI 助理即时响应 · 人类督导预约保留")}
+    <article class="ai-card">
+      <div class="ai-head"><span class="ai-dot" aria-hidden="true"></span><div><h3>AI 督导助理</h3><p>7×24 即时响应 · 基于知识库与你的每日记录 · 建议引用具体记录，不泛泛而谈</p></div></div>
+      <div class="list-actions"><button class="button primary" type="button" data-ai-chat>开始对话</button></div>
+      <p class="ai-foot">危机情况（自伤 / 攻击 / 走失）会自动提示转人工与线下支持。</p>
+    </article>
+    <section class="section">
+      <div class="section-title"><h2>人类督导预约</h2><span>累计 126 小时 · 本月 4 小时</span></div>
+      <div class="list">
+        <article class="list-card"><div><div class="list-card-meta"><span>6月28日 19:30</span><span class="status green">已完成</span></div><h3>支持逐步撤离策略</h3><p>督导：苏老师 · 60分钟 · 记录已归档</p></div><button class="button ghost" type="button" data-toast="已打开督导记录摘要">查看记录</button></article>
+        <article class="list-card"><div><div class="list-card-meta"><span>7月20日 19:30</span><span class="status amber">已预约</span></div><h3>同伴互动泛化</h3><p>督导：苏老师 · 60分钟</p></div><button class="button ghost" type="button" data-toast="演示预约不可变更">管理预约</button></article>
+      </div>
+    </section>
   `;
 }
 
 function pendingLessons() {
-  return state.lessons.filter((lesson) => lesson.status === "pending");
+  return state.lessons.filter((lesson) => ["recorded", "pending"].includes(lesson.status));
 }
 
 function renderReview() {
@@ -723,61 +868,6 @@ function renderReviewHistory() {
   `;
 }
 
-function renderDashboard() {
-  const g = state.graduation;
-  return `
-    ${pageHeader("专业审核工作台", "平台督导 · 今日待办")}
-    <div class="summary-grid">
-      <div class="summary"><span>毕业审核</span><strong>${g.status === 1 || g.status === 2 ? 1 : 0}</strong></div>
-      <div class="summary" style="--accent:var(--amber)"><span>老师认证</span><strong>3</strong></div>
-      <div class="summary" style="--accent:var(--blue)"><span>督导预约</span><strong>5</strong></div>
-      <div class="summary" style="--accent:var(--coral)"><span>异常记录</span><strong>1</strong></div>
-    </div>
-    <div class="list">
-      ${g.status === 1 || g.status === 2 ? `<article class="list-card"><div><div class="list-card-meta"><span class="status amber">${graduationLabel(g.status)}</span></div><h3>${state.child.alias} · ${g.result}</h3><p>提名老师：林晓雅 · 当前服务14个月</p></div><button class="button primary" type="button" data-nav="graduation">处理</button></article>` : ""}
-      <article class="list-card"><div><div class="list-card-meta"><span class="status amber">认证复核</span></div><h3>周可欣 · 进阶认证</h3><p>材料 6 份 · 督导时长 48 小时</p></div><button class="button ghost" type="button" data-nav="certification">查看</button></article>
-    </div>
-  `;
-}
-
-function renderCertification() {
-  return `
-    ${pageHeader("认证审核", "基于身份、培训、督导和已核验服务记录")}
-    <div class="list">
-      <article class="list-card"><div><div class="list-card-meta"><span class="status amber">待补充</span><span>进阶认证</span></div><h3>周可欣</h3><p>缺少最近一次督导总结 · 当前毕业案例 5 个</p></div><button class="button ghost" type="button" data-toast="已发送补充材料通知">通知补充</button></article>
-      <article class="list-card"><div><div class="list-card-meta"><span class="status green">资料齐全</span><span>基础认证</span></div><h3>许安然</h3><p>身份、培训与服务记录已核验</p></div><button class="button primary" type="button" data-toast="认证审核演示已通过">审核</button></article>
-    </div>
-  `;
-}
-
-function renderGraduation() {
-  const g = state.graduation;
-  const teacher = state.teachers.find((item) => item.id === g.teacherId);
-  return `
-    ${pageHeader("毕业认证", `${g.childAlias} · 提名结果：${g.result}`)}
-    <div class="profile-head" style="grid-template-columns:58px minmax(0,1fr) auto">
-      <div class="avatar" style="--avatar:${teacher.color};width:58px;height:58px">${teacher.initials}</div>
-      <div><div class="teacher-name"><h1 style="font-size:20px">${teacher.name}</h1><span class="verified">✓</span></div><div class="teacher-subtitle">服务14个月 · 最近三月校方核验率98%</div></div>
-      <span class="status ${g.status === 4 ? "green" : "amber"}">${graduationLabel(g.status)}</span>
-    </div>
-    <section class="section">
-      ${renderGraduationSteps(g.status)}
-      ${g.status === 0 ? `<div class="notice">等待影子老师发起毕业提名。</div>` : ""}
-      ${g.status === 1 ? `<button class="button primary" type="button" data-grad-action="observe">提交心理观察</button>` : ""}
-      ${g.status === 2 ? `<button class="button primary" type="button" data-grad-action="approve">督导审核通过</button>` : ""}
-      ${g.status === 3 ? `<div class="notice">专业审核已完成，等待家长确认。</div>` : ""}
-      ${g.status === 4 ? `<div class="notice">认证完成。案例已归档并计入${teacher.name}的专业信用。</div>` : ""}
-    </section>
-    <section class="section">
-      <div class="section-title"><h2>核心证据</h2><span>模拟数据</span></div>
-      <div class="case-grid">
-        <article class="case-card"><h3>独立参与</h3><span class="status green">连续8周稳定</span><p>普通课堂独立参与时长由22分钟提升至36分钟。</p></article>
-        <article class="case-card"><h3>支持撤离</h3><span class="status green">目标达成</span><p>四类提示中已撤除视觉位置提示和全程口头提示。</p></article>
-        <article class="case-card"><h3>跨场景表现</h3><span class="status amber">继续观察</span><p>语文、数学课稳定，综合实践仍保留远距离支持。</p></article>
-      </div>
-    </section>
-  `;
-}
 
 function renderGraduationSteps(status) {
   const labels = ["影子老师提名", "心理老师观察", "平台督导审核", "家长确认"];
@@ -788,18 +878,14 @@ function renderGraduationSteps(status) {
   }).join("")}</div>`;
 }
 
-function renderExceptions() {
-  return `
-    ${pageHeader("异常记录", "反馈修正、争议与隐私风险")}
-    <div class="list">
-      <article class="list-card"><div><div class="list-card-meta"><span class="status coral">隐私检查</span><span>今日 11:32</span></div><h3>图片可能包含其他学生</h3><p>系统已暂停向家长展示，等待影子老师重新提交脱敏材料。</p></div><button class="button ghost" type="button" data-toast="异常记录已打开">处理</button></article>
-    </div>
-  `;
-}
 
 function renderModal() {
   if (!ui.modal) return "";
   if (ui.modal.type === "feedback") return renderFeedbackModal(ui.modal.lessonId);
+  if (ui.modal.type === "dbr") return renderDbrModal(ui.modal.lessonId);
+  if (ui.modal.type === "abc") return renderAbcModal(ui.modal.lessonId);
+  if (ui.modal.type === "daily-close") return renderDailyCloseModal();
+  if (ui.modal.type === "ai-chat") return renderAiChatModal();
   if (ui.modal.type === "review") return renderReviewModal(ui.modal.lessonId);
   if (ui.modal.type === "rename") return renderRenameModal(ui.modal.lessonId);
   if (ui.modal.type === "timetable-upload") return renderTimetableUploadModal();
@@ -832,17 +918,110 @@ function renderSummaryFormFields(lesson) {
   }).join("");
 }
 
-function renderFeedbackModal(lessonId) {
+function renderDbrModal(lessonId) {
   const lesson = state.lessons.find((item) => item.id === lessonId);
   if (!lesson) return "";
-  const body = `<form id="feedback-form"><div class="modal-body"><div class="form-grid">
-    <div class="field"><label for="feedback-subject">课程</label><input class="input" id="feedback-subject" value="${escapeHtml(lesson.subject)}" disabled /></div>
-    <div class="field"><label for="feedback-time">时间</label><input class="input" id="feedback-time" value="${lesson.time}" disabled /></div>
-    ${renderSummaryFormFields(lesson)}
-    <div class="field full"><label for="feedback-strategy">支持策略</label><textarea class="textarea" id="feedback-strategy" name="strategy" required placeholder="记录使用的支持方式与结果">${escapeHtml(lesson.strategy)}</textarea></div>
-    <div class="field full"><label>课堂凭证</label><div class="upload-mock">已选择 1 张匿名化课堂图片<br />演示版不上传真实文件</div></div>
-  </div></div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">提交${lesson.schoolTeacher}确认</button></div></form>`;
-  return modalFrame("填写课后总结", body, "");
+  const sliders = DBR_DIMENSIONS.map((dim) => {
+    const current = lesson.dbr ? lesson.dbr[dim.key] : null;
+    const value = current !== null && current !== undefined ? current : (dim.optional ? "" : 5);
+    return `
+      <div class="slider-row">
+        <div class="slider-label"><strong>${dim.label}${dim.optional ? "（可选）" : ""}</strong><span class="slider-hint">${dim.low} ← → ${dim.high}</span></div>
+        <div class="slider-line"><input type="range" min="0" max="10" step="1" name="${dim.key}" value="${value}" ${dim.optional ? "" : "required"} /><output class="slider-value">${value === "" ? "—" : value}</output></div>
+      </div>`;
+  }).join("");
+  const body = `<form id="dbr-form"><div class="modal-body"><div class="form-grid">
+    <div class="field"><label>课程</label><input class="input" value="${escapeHtml(lesson.subject)}" disabled /></div>
+    <div class="field"><label>时间</label><input class="input" value="${lesson.time}" disabled /></div>
+    <div class="field full">${sliders}</div>
+    <div class="field full"><label>高频行为计数（每节数次的小动作，用计数不用 ABC）</label><div class="stepper"><button class="button ghost" type="button" data-step="-1">−</button><output id="freq-value">${lesson.frequencyCount || 0}</output><button class="button ghost" type="button" data-step="1">＋</button></div></div>
+    <div class="field full"><label for="dbr-note">一句话备注（选填）</label><input class="input" id="dbr-note" name="note" value="${escapeHtml(lesson.note || "")}" placeholder="例如：换同桌后前 10 分钟坐不住" /></div>
+    <div class="field full"><button class="link-button" type="button" data-switch-abc>发生了具体事件？记一条 ABC（30 秒）→</button></div>
+  </div></div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">保存打分</button></div></form>`;
+  return modalFrame("下课打分 · 约 10 秒", body, "");
+}
+
+function renderAbcModal(lessonId) {
+  const lesson = state.lessons.find((item) => item.id === lessonId);
+  if (!lesson) return "";
+  const chips = (list, name) => list.map((item) => `<label class="chip"><input type="radio" name="${name}" value="${escapeHtml(item)}" /> ${escapeHtml(item)}</label>`).join("");
+  const body = `<form id="abc-form"><div class="modal-body">
+    <div class="notice">事件自动挂到：${escapeHtml(lesson.subject)} · ${lesson.time}。高频小动作请回打分页用计数器，不填 ABC。</div>
+    <fieldset class="fieldset"><legend>前因 A（刚发生了什么）</legend><div class="chip-group">${chips(ANTECEDENTS, "antecedent")}</div><textarea class="textarea other-text" name="antecedentOther" placeholder="选「其他」时写一句话"></textarea></fieldset>
+    <div class="field full" style="margin-top:12px"><label for="abc-behavior">行为 B（可观察的动作，一句话）</label><input class="input" id="abc-behavior" name="behavior" required placeholder="例如：拍桌并离开座位" /></div>
+    <fieldset class="fieldset" style="margin-top:12px"><legend>后果 C（之后发生了什么）</legend><div class="chip-group">${chips(CONSEQUENCES, "consequence")}</div><textarea class="textarea other-text" name="consequenceOther" placeholder="选「其他」时写一句话"></textarea></fieldset>
+    <fieldset class="fieldset" style="margin-top:12px"><legend>强度</legend><div class="chip-group">${INTENSITIES.map((item, index) => `<label class="chip"><input type="radio" name="intensity" value="${item}" ${index === 1 ? "checked" : ""} /> ${item}</label>`).join("")}</div></fieldset>
+  </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">保存事件</button></div></form>`;
+  return modalFrame("记录 ABC 事件 · 约 30 秒", body, "");
+}
+
+function renderDailyCloseModal() {
+  const existing = todayCloseRecord();
+  const recorded = state.lessons.filter((lesson) => hasDbr(lesson));
+  const avg = (key) => {
+    const values = recorded.map((lesson) => lesson.dbr[key]).filter((value) => value !== null && value !== undefined);
+    return values.length ? Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 10) / 10 : "—";
+  };
+  const aggregate = DBR_DIMENSIONS.map((dim) => `<div class="agg-item"><span>${dim.label}</span><strong>${avg(dim.key)}</strong></div>`).join("");
+  const goalChecks = state.goals.filter((goal) => goal.active).map((goal) => {
+    const check = existing ? existing.goalChecks.find((entry) => entry.goalId === goal.id) : null;
+    return `
+      <div class="goal-row">
+        <span>${escapeHtml(goal.text)}</span>
+        <div class="radio-row">
+          <label class="radio"><input type="radio" name="goal-${goal.id}" value="done" ${check && check.done ? "checked" : ""} /> ✓ 达成</label>
+          <label class="radio"><input type="radio" name="goal-${goal.id}" value="miss" ${check && !check.done ? "checked" : ""} /> ✗ 未达成</label>
+        </div>
+      </div>`;
+  }).join("");
+  const promptRow = state.goals.filter((goal) => goal.active).map((goal) => {
+    const level = existing ? existing.promptLevels[goal.id] : "";
+    return `<div class="goal-row"><span>${escapeHtml(goal.text)}</span><select class="select" name="prompt-${goal.id}">${PROMPT_LEVELS.map((item) => `<option value="${item.code}" ${level === item.code ? "selected" : ""}>${item.short}（${item.code}）</option>`).join("")}</select></div>`;
+  }).join("");
+  const body = `<form id="close-form"><div class="modal-body">
+    <fieldset class="fieldset"><legend>今日三问（自动聚合 ${recorded.length} 节课打分）</legend><div class="agg-grid">${aggregate}</div><p class="agg-foot">无需重复填写；某课打分有偏差，回课表修改即自动更新。</p></fieldset>
+    <fieldset class="fieldset" style="margin-top:12px"><legend>目标打卡（正向目标，回家给奖励）</legend>${goalChecks}</fieldset>
+    <fieldset class="fieldset" style="margin-top:12px"><legend>今日主要辅助层级（撤辅进度）</legend>${promptRow}<p class="agg-foot">参考规则：同一目标连续 2 次达成自动降一档辅助，连续 2 次未达成升一档。</p></fieldset>
+    <div class="field full" style="margin-top:12px"><label for="close-highlights">今日亮点</label><textarea class="textarea" id="close-highlights" name="highlights" placeholder="值得记录的进步瞬间">${escapeHtml(existing ? existing.highlights : "")}</textarea></div>
+    <div class="field full"><label for="close-confusions">今日困惑</label><textarea class="textarea" id="close-confusions" name="confusions" placeholder="写下今天没搞定的问题，可一键问 AI 助教">${escapeHtml(existing ? existing.confusions : "")}</textarea></div>
+    <div class="field full"><button class="link-button" type="button" data-ask-ai>把困惑交给 AI 督导助理 →</button></div>
+    <div class="field full"><label for="close-plan">明日计划（一句话）</label><input class="input" id="close-plan" name="tomorrowPlan" value="${escapeHtml(existing ? existing.tomorrowPlan : "")}" placeholder="例如：数学课前先预告任务步骤" /></div>
+  </div><div class="modal-actions"><button class="button ghost" type="button" data-close-modal>取消</button><button class="button primary" type="submit">完成收口</button></div></form>`;
+  return modalFrame("放学收口 · 约 90 秒", body, "");
+}
+
+function aiContextSummary() {
+  const lines = state.lessons.filter((lesson) => hasDbr(lesson)).map((lesson) => `${lesson.time} ${lesson.subject}：学业投入 ${lesson.dbr.academicEngagement} / 干扰 ${lesson.dbr.disruptive} / 社交规则 ${lesson.dbr.socialRule}${lesson.note ? `（${lesson.note}）` : ""}`);
+  const abcLines = state.abcEvents.map((event) => `${event.subject}：前因「${event.antecedent}」→ 行为「${event.behavior}」→ 后果「${event.consequence}」（强度 ${event.intensity}）`);
+  return { lines, abcLines };
+}
+
+function aiInitialMessage() {
+  const { lines, abcLines } = aiContextSummary();
+  const close = todayCloseRecord();
+  const confusion = close && close.confusions ? close.confusions : "";
+  const text = confusion
+    ? `看到你今天的困惑：「${confusion}」。结合今天的记录——\n${lines.join("；\n")}。${abcLines.length ? `\nABC 事件：${abcLines.join("；")}。` : ""}\n建议：明天同一情境前先做 2 分钟预告，把任务拆成两段，第一段完成立即给具体表扬。观察指标：转换后 3 分钟内回到座位即算成功。连续记录 3 天后再判断模式。`
+    : `今天已有 ${lines.length} 节课打分、${abcLines.length} 条 ABC 事件。${abcLines.length ? `值得注意的是「${abcLines[0]}」——前因指向等待与转换，建议下次提前 2 分钟预告转换，并准备轮次卡。` : "暂无 ABC 事件记录。"}\n你可以直接问我今天遇到的任何问题。`;
+  return { role: "ai", text };
+}
+
+function aiReply(question) {
+  if (CRISIS_KEYWORDS.some((word) => question.includes(word))) {
+    return { role: "ai", crisis: true, text: "你描述的情况属于危机行为（自伤/攻击/走失类），已超出在线建议的边界：请立即确保孩子及周围人员安全，并第一时间联系你的机构督导或线下专业人员处理。处理完成后回来记录事件，我会帮你整理 ABC 与后续预防。" };
+  }
+  const { lines, abcLines } = aiContextSummary();
+  const weak = state.lessons.filter((lesson) => hasDbr(lesson) && lesson.dbr.disruptive >= 5).map((lesson) => lesson.subject);
+  const close = todayCloseRecord();
+  const evidence = [lines[0], abcLines[0], close ? `昨日目标达成 ${close.goalChecks.filter((check) => check.done).length}/${close.goalChecks.length}` : ""].filter(Boolean).join("；");
+  return { role: "ai", text: `基于你的记录（${evidence || "暂无记录"}）：\n建议步骤：1）相同情境出现前 2 分钟预告；2）把任务拆成两段，第一段完成立即给具体表扬；3）在收口里记录辅助层级，我帮你追踪褪降进度。观察指标：提示后 3 分钟内回到任务。目前样本还少，连续记 3 天后再下结论。${weak.length ? `今日「干扰行为」偏高的课：${weak.join("、")}。` : ""}` };
+}
+
+function renderAiChatModal() {
+  if (!ui.aiMessages || !ui.aiMessages.length) ui.aiMessages = [aiInitialMessage()];
+  const messages = ui.aiMessages.map((message) => `<div class="chat-row ${message.role}">${message.crisis ? `<div class="crisis-card">⚠️ 危机行为提醒 · 建议立即转人工</div>` : ""}<div class="chat-bubble ${message.role}">${escapeHtml(message.text).replaceAll("\n", "<br />")}</div></div>`).join("");
+  const body = `<div class="modal-body chat-body"><div class="chat-list">${messages}</div></div><form id="ai-chat-form" class="chat-input-row"><input class="input" name="question" required placeholder="输入问题，AI 会引用你的记录回答" /><button class="button primary" type="submit">发送</button></form>`;
+  return modalFrame("AI 督导助理 · 基于你的记录", body, "");
 }
 
 function renderReviewModal(lessonId) {
@@ -982,6 +1161,45 @@ document.addEventListener("click", (event) => {
     render();
     return;
   }
+  if (target.matches("[data-dbr]")) {
+    ui.modal = { type: "dbr", lessonId: target.dataset.dbr };
+    render();
+    return;
+  }
+  if (target.matches("[data-abc]")) {
+    ui.modal = { type: "abc", lessonId: target.dataset.abc };
+    render();
+    return;
+  }
+  if (target.matches("[data-switch-abc]")) {
+    ui.modal = { type: "abc", lessonId: ui.modal.lessonId };
+    render();
+    return;
+  }
+  if (target.matches("[data-step]")) {
+    const output = document.querySelector("#freq-value");
+    if (output) output.textContent = Math.max(0, (parseInt(output.textContent, 10) || 0) + Number(target.dataset.step));
+    return;
+  }
+  if (target.matches("[data-daily-close]")) {
+    ui.modal = { type: "daily-close" };
+    render();
+    return;
+  }
+  if (target.matches("[data-ai-chat]")) {
+    ui.aiMessages = [];
+    ui.modal = { type: "ai-chat" };
+    render();
+    return;
+  }
+  if (target.matches("[data-ask-ai]")) {
+    const textarea = document.querySelector("#close-confusions");
+    const confusion = textarea ? textarea.value.trim() : "";
+    ui.aiMessages = confusion ? [{ role: "user", text: confusion }, aiReply(confusion)] : [];
+    ui.modal = { type: "ai-chat" };
+    render();
+    return;
+  }
   if (target.matches("[data-review]")) {
     ui.modal = { type: "review", lessonId: target.dataset.review };
     render();
@@ -1039,6 +1257,20 @@ document.addEventListener("click", (event) => {
     showToast("演示数据已重置");
     return;
   }
+  if (target.matches("[data-auth-school]")) {
+    ui.auth.school = true;
+    saveAuth();
+    showToast("已授权，正在加载内容");
+    render();
+    return;
+  }
+  if (target.matches("[data-auth-shadow]")) {
+    ui.auth.shadow = true;
+    saveAuth();
+    showToast("已授权，正在加载内容");
+    render();
+    return;
+  }
   if (target.matches("[data-toast]")) {
     showToast(target.dataset.toast);
     return;
@@ -1075,6 +1307,10 @@ document.addEventListener("input", (event) => {
     input.focus();
     input.setSelectionRange(cursor, cursor);
   }
+  if (event.target.matches('#dbr-form input[type="range"]')) {
+    const output = event.target.parentElement.querySelector(".slider-value");
+    if (output) output.textContent = event.target.value;
+  }
 });
 
 document.addEventListener("submit", (event) => {
@@ -1098,19 +1334,84 @@ document.addEventListener("submit", (event) => {
     showToast("体验反馈已保存");
     return;
   }
-  if (event.target.matches("#feedback-form")) {
+  if (event.target.matches("#dbr-form")) {
     const lesson = state.lessons.find((item) => item.id === ui.modal.lessonId);
     const form = new FormData(event.target);
-    lesson.summary = SUMMARY_CATEGORIES.map((category, index) => ({
-      category,
-      tone: form.get(`summary-tone-${index}`),
-      text: form.get(`summary-text-${index}`).trim()
-    }));
-    lesson.strategy = form.get("strategy").trim();
-    lesson.status = "pending";
+    lesson.dbr = {};
+    DBR_DIMENSIONS.forEach((dim) => {
+      const raw = form.get(dim.key);
+      lesson.dbr[dim.key] = raw === null || raw === "" ? null : Number(raw);
+    });
+    const freqOutput = document.querySelector("#freq-value");
+    lesson.frequencyCount = freqOutput ? parseInt(freqOutput.textContent, 10) || 0 : 0;
+    lesson.note = (form.get("note") || "").trim();
+    if (["draft", "correction"].includes(lesson.status)) lesson.status = "recorded";
     lesson.updatedAt = new Date().toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
     ui.modal = null;
-    saveAndRender(`已提交${lesson.schoolTeacher}确认`);
+    saveAndRender(`已记录 · ${lesson.subject} 打分完成`);
+    return;
+  }
+  if (event.target.matches("#abc-form")) {
+    const lesson = state.lessons.find((item) => item.id === ui.modal.lessonId);
+    const form = new FormData(event.target);
+    const antecedent = form.get("antecedent");
+    const consequence = form.get("consequence");
+    if (!antecedent) {
+      showToast("请选择前因 A");
+      return;
+    }
+    if (!consequence) {
+      showToast("请选择后果 C");
+      return;
+    }
+    const otherText = [form.get("antecedentOther"), form.get("consequenceOther")].map((text) => (text || "").trim()).filter(Boolean).join(" / ");
+    state.abcEvents.push({
+      id: `abc-${Date.now()}`,
+      lessonId: lesson.id,
+      time: lesson.time,
+      subject: lesson.subject,
+      antecedent,
+      behavior: form.get("behavior").trim(),
+      consequence,
+      intensity: form.get("intensity") || "中",
+      otherText
+    });
+    ui.modal = null;
+    saveAndRender(`ABC 事件已挂到「${lesson.subject}」`);
+    return;
+  }
+  if (event.target.matches("#close-form")) {
+    const form = new FormData(event.target);
+    const today = new Date().toISOString().slice(0, 10);
+    const activeGoals = state.goals.filter((goal) => goal.active);
+    const record = {
+      date: today,
+      goalChecks: activeGoals.map((goal) => ({ goalId: goal.id, done: form.get(`goal-${goal.id}`) === "done" })),
+      promptLevels: {},
+      highlights: (form.get("highlights") || "").trim(),
+      confusions: (form.get("confusions") || "").trim(),
+      tomorrowPlan: (form.get("tomorrowPlan") || "").trim(),
+      aiAsked: false
+    };
+    activeGoals.forEach((goal) => {
+      record.promptLevels[goal.id] = form.get(`prompt-${goal.id}`) || "I";
+    });
+    const index = state.dailyRecords.findIndex((entry) => entry.date === today);
+    if (index >= 0) state.dailyRecords[index] = record;
+    else state.dailyRecords.push(record);
+    ui.modal = null;
+    saveAndRender("今日收口完成 · 明日计划已留存");
+    return;
+  }
+  if (event.target.matches("#ai-chat-form")) {
+    const form = new FormData(event.target);
+    const question = (form.get("question") || "").trim();
+    if (!question) return;
+    ui.aiMessages.push({ role: "user", text: question });
+    ui.aiMessages.push(aiReply(question));
+    render();
+    const list = document.querySelector(".chat-body");
+    if (list) list.scrollTop = list.scrollHeight;
     return;
   }
   if (event.target.matches("#review-form")) {

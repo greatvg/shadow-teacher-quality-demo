@@ -1538,3 +1538,219 @@ textarea:focus-visible {
     transition: none !important;
   }
 }
+
+/* 校内老师端微信授权门 */
+.auth-gate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 80px 30px 100px;
+  text-align: center;
+  min-height: 60vh;
+}
+.auth-gate-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  line-height: 1;
+}
+.auth-gate-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2a3340;
+  margin-bottom: 8px;
+}
+.auth-gate-desc {
+  font-size: 13px;
+  color: #5b6470;
+  line-height: 1.7;
+  margin-bottom: 32px;
+  max-width: 280px;
+}
+.auth-btn {
+  background: #2f7659;
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  padding: 12px 48px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.auth-btn:hover {
+  opacity: 0.92;
+}
+
+/* ===== 记录端 v1.1：课级轻记 + ABC + 收口 + AI 督导助理 ===== */
+.close-card {
+  background: var(--green-soft);
+  border: 1px solid #cfe3d8;
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.close-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.close-head h3 { font-size: 15px; margin-bottom: 2px; }
+.close-head p { font-size: 13px; color: #4a5a52; margin: 0; }
+.close-foot { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+.dbr-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin-top: 8px;
+}
+.dbr-chip {
+  display: inline-block;
+  font-size: 12px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.dbr-chip.good { background: var(--green-soft); color: var(--green); }
+.dbr-chip.warn { background: var(--red-soft); color: var(--red); }
+.dbr-chip.mid { background: var(--amber-soft); color: var(--amber); }
+.dbr-chip.abc { background: var(--blue-soft); color: var(--blue); }
+.dbr-note { font-size: 12px; color: var(--muted); }
+.dbr-row.big { margin: 4px 0 10px; }
+
+.abc-list { display: grid; gap: 8px; margin-top: 4px; }
+.abc-item {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  background: #f7faf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+.abc-item p { font-size: 13px; margin: 0; line-height: 1.6; }
+
+.slider-row { margin-bottom: 14px; }
+.slider-label { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.slider-label strong { font-size: 14px; }
+.slider-hint { font-size: 12px; color: var(--muted); }
+.slider-line { display: flex; align-items: center; gap: 10px; }
+.slider-line input[type="range"] { flex: 1; accent-color: var(--green); }
+.slider-value {
+  min-width: 34px;
+  text-align: center;
+  font-weight: 700;
+  color: var(--green);
+  background: var(--green-soft);
+  border-radius: 8px;
+  padding: 2px 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepper { display: inline-flex; align-items: center; gap: 14px; }
+.stepper output { font-size: 18px; font-weight: 700; min-width: 28px; text-align: center; }
+.stepper .button { padding: 4px 14px; }
+
+.chip-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.chip:has(input:checked) { background: var(--green-soft); border-color: var(--green); color: var(--green); font-weight: 600; }
+.chip input { accent-color: var(--green); margin: 0; }
+.other-text { margin-top: 8px; }
+
+.goal-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e4e9e5;
+  font-size: 14px;
+}
+.goal-row:last-of-type { border-bottom: none; }
+.goal-row select { max-width: 190px; }
+
+.agg-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.agg-item {
+  background: #f7faf7;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: center;
+}
+.agg-item span { display: block; font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+.agg-item strong { font-size: 17px; color: var(--green); font-variant-numeric: tabular-nums; }
+.agg-foot { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+.ai-card {
+  background: linear-gradient(135deg, var(--blue-soft) 0%, var(--green-soft) 100%);
+  border: 1px solid #cfe3d8;
+  border-radius: 14px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.ai-head { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; }
+.ai-head h3 { font-size: 15px; }
+.ai-head p { font-size: 12.5px; color: #4a5a52; margin: 2px 0 0; }
+.ai-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(31, 107, 79, 0.15);
+  flex-shrink: 0;
+}
+.ai-foot { font-size: 12px; color: var(--muted); margin: 10px 0 0; }
+
+.chat-body { max-height: 46vh; overflow-y: auto; }
+.chat-list { display: grid; gap: 12px; }
+.chat-row { display: flex; flex-direction: column; }
+.chat-row.user { align-items: flex-end; }
+.chat-bubble {
+  max-width: 88%;
+  border-radius: 14px;
+  padding: 10px 13px;
+  font-size: 13.5px;
+  line-height: 1.65;
+}
+.chat-bubble.ai { background: #f2f5f1; border: 1px solid var(--line); border-top-left-radius: 4px; }
+.chat-bubble.user { background: var(--green); color: #ffffff; border-top-right-radius: 4px; }
+.chat-input-row { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.chat-input-row .input { flex: 1; }
+.crisis-card {
+  background: var(--red-soft);
+  color: var(--red);
+  border: 1px solid #e5b7b2;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+}
+
+.link-button {
+  background: none;
+  border: none;
+  color: var(--green);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+}
+.link-button:hover { text-decoration: underline; }
+
+@media (max-width: 640px) {
+  .agg-grid { grid-template-columns: repeat(2, 1fr); }
+  .goal-row { flex-direction: column; align-items: flex-start; }
+}
